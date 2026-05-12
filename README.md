@@ -51,26 +51,52 @@ Look for:
 
 If the format differs from what `parser.py` expects, adjust the regex constants at the top of `src/wordle_elo/parser.py`.
 
-## 4. Day 2-3 — backfill
+## 4. Day 2 — dry-run (preview ELO without committing)
 
-Once the parser is verified, ingest all historical messages:
+Before the real backfill writes anything, simulate the entire channel history in memory and print the leaderboard. Tweak the ELO knobs (`K_FACTOR`, speed bonuses in `src/wordle_elo/elo.py`, tier thresholds in `src/wordle_elo/tier.py`) and rerun until the rankings feel right:
+
+```bash
+docker compose run --rm bot python -m wordle_elo.scripts.dry_run
+# limit to last 200 messages while iterating:
+docker compose run --rm bot python -m wordle_elo.scripts.dry_run --limit 200
+```
+
+Prints:
+
+```
+순위  닉네임           계급         ELO  승/게임(승률)   최대연승  평균시도(승)
+───────────────────────────────────────────────────────────────────────────────
+   1  flame91          Challenger  1374  84/85 (98.8%)         43          3.25
+   2  racingandy       Platinum    1317  85/85 (100.0%)        85          3.47
+   ...
+
+# Biggest single-day ELO swings:
+  Wordle  1743  Frankschiflotte  +23  → 916
+  ...
+```
+
+**Dry-run touches nothing**: no DB writes, no channel posts. Safe to run repeatedly.
+
+## 5. Day 2-3 — real backfill
+
+When the dry-run output looks right:
 
 ```bash
 docker compose run --rm bot python -m wordle_elo.scripts.backfill
-# or, to start from a specific puzzle:
+# or skip ahead:
 docker compose run --rm bot python -m wordle_elo.scripts.backfill --since-puzzle 1500
 ```
 
-This is **silent** (no leaderboard posts) and **idempotent** (rerun-safe). Failures are dumped to `data/logs/backfill_failures.jsonl`.
+Silent (no leaderboard posts), idempotent (rerun-safe). Failures dumped to `data/logs/backfill_failures.jsonl`.
 
 Verify:
 
 ```bash
 sqlite3 data/wordle.db "SELECT puzzle_no, COUNT(*) FROM submissions GROUP BY puzzle_no ORDER BY puzzle_no LIMIT 30"
-sqlite3 data/wordle.db "SELECT user_id, display_name, elo, games_played, current_streak FROM players ORDER BY elo DESC"
+sqlite3 data/wordle.db "SELECT display_name, elo, games_played, games_won, best_streak FROM players ORDER BY elo DESC"
 ```
 
-## 5. Day 4 — go live
+## 6. Day 4 — go live
 
 ```bash
 docker compose up -d

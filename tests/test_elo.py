@@ -9,9 +9,13 @@ import pytest
 
 from wordle_elo.elo import (
     DELTA_CLAMP,
+    K,
+    K_NEW,
+    NEW_PLAYER_GAMES,
     actual,
     compute_daily,
     expected,
+    k_factor,
     streak_bonus,
 )
 
@@ -112,6 +116,59 @@ def test_delta_stays_bounded_under_extreme_conditions():
     )
     for delta in out.values():
         assert -DELTA_CLAMP <= delta.delta_total <= DELTA_CLAMP
+
+
+@pytest.mark.parametrize(
+    "games_played,expected_k",
+    [
+        (0, K_NEW),                           # brand new
+        (NEW_PLAYER_GAMES - 1, K_NEW),        # last "new" game
+        (NEW_PLAYER_GAMES, K),                # first "established" game
+        (50, K),
+        (1000, K),
+    ],
+)
+def test_k_factor_tiers(games_played, expected_k):
+    assert k_factor(games_played) == expected_k
+
+
+def test_new_player_moves_faster_than_established():
+    # Same matchup; flip which player is "new" and verify each player's |delta|
+    # is larger when *that player* is new (K_NEW) vs established (K).
+    subs = [(1, 3, False), (2, 5, False)]
+    ratings = {1: 1000, 2: 1000}
+    streaks = {1: 0, 2: 0}
+
+    p1_new = compute_daily(subs, ratings, streaks, games_played_before={1: 2, 2: 100})
+    p2_new = compute_daily(subs, ratings, streaks, games_played_before={1: 100, 2: 2})
+
+    # P1 wins more when P1 is new
+    assert abs(p1_new[1].delta_total) > abs(p2_new[1].delta_total)
+    # P2 loses more when P2 is new
+    assert abs(p2_new[2].delta_total) > abs(p1_new[2].delta_total)
+
+
+def test_per_player_k_is_independent():
+    # Mixed: P1 is new, P2 is established. Each player's delta uses their own K.
+    subs = [(1, 3, False), (2, 5, False)]
+    ratings = {1: 1000, 2: 1000}
+    streaks = {1: 0, 2: 0}
+    out = compute_daily(subs, ratings, streaks, games_played_before={1: 0, 2: 200})
+    # P1: K=40, n=2, S-E = 0.5, field = 40*0.5 = 20, speed = +1 → 21
+    assert out[1].delta_total == 21
+    # P2: K=24, n=2, S-E = -0.5, field = -12, speed = -1 → -13
+    assert out[2].delta_total == -13
+
+
+def test_default_no_gp_treats_as_established():
+    # Existing tests omit games_played_before; should still get K=24 behavior
+    out = compute_daily(
+        [(1, 3, False), (2, 5, False)],
+        {1: 1000, 2: 1000},
+        {1: 0, 2: 0},
+    )
+    # field = 24*0.5 = 12, speed +1 → 13
+    assert out[1].delta_total == 13
 
 
 def test_field_averaging_with_three_players():

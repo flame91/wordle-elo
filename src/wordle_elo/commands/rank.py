@@ -38,14 +38,19 @@ class RankCog(commands.Cog):
             )
             total = await session.scalar(select(func.count()).select_from(Player))
 
-            sub_q = (
+            recent_q = (
                 select(Submission.guesses)
                 .where(Submission.user_id == target.id)
                 .order_by(desc(Submission.puzzle_no))
                 .limit(14)
                 .subquery()
             )
-            avg_g = await session.scalar(select(func.avg(sub_q.c.guesses)))
+            recent_avg = await session.scalar(select(func.avg(recent_q.c.guesses)))
+
+            all_time_avg = await session.scalar(
+                select(func.avg(Submission.guesses))
+                .where(Submission.user_id == target.id, Submission.guesses <= 6)
+            )
 
             all_ratings = [r for (r,) in await session.execute(select(Player.elo))]
 
@@ -54,7 +59,8 @@ class RankCog(commands.Cog):
             player,
             rank=(ahead or 0) + 1,
             total=total or 0,
-            recent_avg_guesses=float(avg_g) if avg_g is not None else None,
+            recent_avg_guesses=float(recent_avg) if recent_avg is not None else None,
+            avg_winning_guesses=float(all_time_avg) if all_time_avg is not None else None,
             tier=tier,
         )
         await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
