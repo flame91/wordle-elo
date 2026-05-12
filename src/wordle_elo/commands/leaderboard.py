@@ -39,7 +39,6 @@ class LeaderboardCog(commands.Cog):
             rows.append(
                 {
                     "user_id": p.user_id,
-                    "display_name": p.display_name,
                     "elo": p.elo,
                     "tier": assign_tier(p.elo, all_ratings, p.games_played),
                     "games_played": p.games_played,

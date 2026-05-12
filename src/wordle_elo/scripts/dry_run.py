@@ -65,8 +65,19 @@ class DryRunClient(discord.Client):
                 flush=True,
             )
 
+            guild = self.get_guild(self.cfg.discord_guild_id)
             display_names: dict[int, str] = {}
             for uid in user_ids:
+                # Prefer Member (server-visible name); fall back to global User.
+                member = guild.get_member(uid) if guild is not None else None
+                if member is None and guild is not None:
+                    try:
+                        member = await guild.fetch_member(uid)
+                    except Exception:
+                        member = None
+                if member is not None:
+                    display_names[uid] = member.display_name
+                    continue
                 user = self.get_user(uid)
                 if user is None:
                     try:
