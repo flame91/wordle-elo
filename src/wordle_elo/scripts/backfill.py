@@ -32,6 +32,7 @@ class BackfillClient(discord.Client):
     def __init__(self, cfg, channel_id: int, since_puzzle: int | None):
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.members = True  # preload guild members so nickname resolution doesn't hammer fetch_user
         super().__init__(intents=intents)
         self.cfg = cfg
         self.channel_id = channel_id

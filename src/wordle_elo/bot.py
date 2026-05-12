@@ -18,6 +18,7 @@ class WordleEloBot(commands.Bot):
     def __init__(self, cfg: Config):
         intents = discord.Intents.default()
         intents.message_content = True   # privileged — must be enabled in Developer Portal
+        intents.members = True           # privileged — preloads guild members for nickname resolution
         intents.guilds = True
         super().__init__(command_prefix="!", intents=intents, help_command=None)
         self.cfg = cfg
