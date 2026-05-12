@@ -16,7 +16,7 @@ import json
 
 import discord
 
-from ..config import load_config
+from ..config import bootstrap
 
 
 class FetchClient(discord.Client):
@@ -62,7 +62,7 @@ def main():
     p.add_argument("--raw", action="store_true", help="Dump full embed JSON")
     args = p.parse_args()
 
-    cfg = load_config()
+    cfg = bootstrap()
     channel_id = args.channel_id or cfg.wordle_channel_id
     client = FetchClient(channel_id, args.limit, args.raw)
     asyncio.run(client.start(cfg.discord_bot_token))

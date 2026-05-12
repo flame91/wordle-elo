@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import delete, select
 
-from ..config import load_config
+from ..config import bootstrap
 from ..db import init_db, make_engine, make_sessionmaker
 from ..elo import INITIAL as ELO_INITIAL
 from ..elo import compute_daily
@@ -121,7 +121,7 @@ async def recompute(cfg) -> None:
 def main():
     logging.basicConfig(level=logging.INFO)
     argparse.ArgumentParser().parse_args()  # accept no args; placeholder
-    cfg = load_config()
+    cfg = bootstrap()
     asyncio.run(recompute(cfg))
 
 

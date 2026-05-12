@@ -18,11 +18,33 @@ class Config(BaseSettings):
     db_path: Path = Field(default=Path("/data/wordle.db"), alias="DB_PATH")
     log_dir: Path = Field(default=Path("/data/logs"), alias="LOG_DIR")
 
+    # ─── ELO knobs ───
     initial_elo: int = Field(default=1000, alias="INITIAL_ELO")
     k_factor: int = Field(default=24, alias="K_FACTOR")
+    k_factor_new: int = Field(default=40, alias="K_FACTOR_NEW")
+    new_player_games: int = Field(default=10, alias="NEW_PLAYER_GAMES")
+    delta_clamp: int = Field(default=40, alias="DELTA_CLAMP")
     placement_games: int = Field(default=14, alias="PLACEMENT_GAMES")
-    season_start_date: date = Field(default=date(2026, 5, 12), alias="SEASON_START_DATE")
+    season_start_date: date = Field(default=date(2025, 10, 22), alias="SEASON_START_DATE")
 
 
 def load_config() -> Config:
     return Config()  # type: ignore[call-arg]
+
+
+def bootstrap() -> Config:
+    """Load config + push ELO knobs into the elo module so module-level
+    constants (INITIAL, K, K_NEW, NEW_PLAYER_GAMES, DELTA_CLAMP) reflect
+    user overrides. Call this in every entry point (bot + every script).
+    """
+    cfg = load_config()
+    from . import elo
+
+    elo.configure(
+        initial=cfg.initial_elo,
+        k=cfg.k_factor,
+        k_new=cfg.k_factor_new,
+        new_player_games=cfg.new_player_games,
+        delta_clamp=cfg.delta_clamp,
+    )
+    return cfg

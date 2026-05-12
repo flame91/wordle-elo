@@ -14,12 +14,37 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+# Module-level defaults. Override at startup via `configure()` (called from
+# `config.bootstrap()`); all callers reading these constants will see the
+# updated values automatically.
 INITIAL = 1000
 K = 24                 # regular K-factor (FIDE-style "established" rating)
 K_NEW = 40             # K for new players in their first NEW_PLAYER_GAMES games
 NEW_PLAYER_GAMES = 10  # threshold below which K_NEW applies
-SPEED = {1: 3, 2: 2, 3: 1, 4: 0, 5: -1, 6: -2, 7: -4}  # 7 = X (failed)
 DELTA_CLAMP = 40
+SPEED = {1: 3, 2: 2, 3: 1, 4: 0, 5: -1, 6: -2, 7: -4}  # 7 = X (failed)
+
+
+def configure(
+    *,
+    initial: int | None = None,
+    k: int | None = None,
+    k_new: int | None = None,
+    new_player_games: int | None = None,
+    delta_clamp: int | None = None,
+) -> None:
+    """Override module-level ELO knobs from env / config. Idempotent."""
+    global INITIAL, K, K_NEW, NEW_PLAYER_GAMES, DELTA_CLAMP
+    if initial is not None:
+        INITIAL = initial
+    if k is not None:
+        K = k
+    if k_new is not None:
+        K_NEW = k_new
+    if new_player_games is not None:
+        NEW_PLAYER_GAMES = new_player_games
+    if delta_clamp is not None:
+        DELTA_CLAMP = delta_clamp
 
 
 def k_factor(games_played_before: int) -> int:
