@@ -19,7 +19,7 @@ import logging
 
 import discord
 
-from ..config import load_config
+from ..config import bootstrap
 from ..db import init_db, make_engine, make_sessionmaker
 from ..models import ProcessedPuzzle
 from ..parser import parse_message
@@ -111,7 +111,7 @@ def main():
                    help="Only process puzzles with no >= this value")
     args = p.parse_args()
 
-    cfg = load_config()
+    cfg = bootstrap()
     channel_id = args.channel_id or cfg.wordle_channel_id
     client = BackfillClient(cfg, channel_id, args.since_puzzle)
     asyncio.run(client.start(cfg.discord_bot_token))
