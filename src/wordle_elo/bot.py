@@ -38,13 +38,15 @@ class WordleEloBot(commands.Bot):
         self.tree.copy_global_to(guild=guild_obj)
         await self.tree.sync(guild=guild_obj)
 
-        # Catch-up: every day 00:30 in the bot's timezone
+        # Catch-up: 00:05 onward, every 5 min until 00:55. The Wordle APP
+        # usually posts at 00:00; if on_message missed it we keep retrying
+        # until the message lands. catch_up is idempotent via processed_puzzles.
         self.apscheduler = AsyncIOScheduler(timezone=self.cfg.tz)
         self.apscheduler.add_job(
             catch_up,
             "cron",
             hour=0,
-            minute=30,
+            minute="5-55/5",
             args=[self],
             id="daily_catchup",
             replace_existing=True,

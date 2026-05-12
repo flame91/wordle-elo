@@ -148,4 +148,4 @@ docker compose exec bot pytest -v
 
 Docker Desktop's *Settings → General → Start Docker Desktop when you sign in* + the `restart: unless-stopped` policy in `docker-compose.yml` means the bot comes back automatically after a reboot. WSL2 itself starts on demand when Docker Desktop launches.
 
-If the laptop sleeps overnight and misses the 12:00 message, the **00:30 KST catch-up scheduler** (or the next bot startup) scans the channel's recent history and processes anything missing — guaranteed by the `processed_puzzles` idempotency key.
+If the laptop sleeps overnight and misses the 12:00 message, the **catch-up scheduler** kicks in at 00:05 KST and retries every 5 minutes through 00:55 (or the next bot startup), scanning the channel's recent history and processing anything missing — guaranteed by the `processed_puzzles` idempotency key.
