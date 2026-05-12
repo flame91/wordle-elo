@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 LINE_RE = re.compile(
     r"(?P<guesses>[1-6X])/6(?P<hard>\*?)\s*:\s*"
@@ -28,6 +30,28 @@ USER_RE = re.compile(r"<@!?(\d+)>")
 PUZZLE_RE = re.compile(r"Wordle\s*(?:No\.?|#)\s*([\d,]+)", re.IGNORECASE)
 
 X_FAIL_GUESSES = 7  # internal representation for X/6 (failed)
+
+# Date-based puzzle-number fallback for messages that don't embed the number
+# (Wordle Activity's current format). Overridden at startup via `configure()`.
+EPOCH_DATE = date(2021, 6, 19)
+TZ = ZoneInfo("Asia/Seoul")
+
+
+def configure(*, epoch_date: date | None = None, tz_name: str | None = None) -> None:
+    """Override module-level date-fallback knobs. Called from `config.bootstrap()`."""
+    global EPOCH_DATE, TZ
+    if epoch_date is not None:
+        EPOCH_DATE = epoch_date
+    if tz_name is not None:
+        TZ = ZoneInfo(tz_name)
+
+
+def _puzzle_no_from_created_at(created_at: datetime) -> int:
+    """Wordle Activity posts ~midnight local time with `yesterday's results`,
+    so the puzzle date is (message's local calendar date) - 1 day.
+    """
+    local_date = created_at.astimezone(TZ).date()
+    return (local_date - timedelta(days=1) - EPOCH_DATE).days
 
 
 @dataclass(frozen=True)
@@ -73,12 +97,18 @@ def _parse_lines(content: str) -> list[ParsedSubmission]:
     return subs
 
 
-def parse_text(content: str, embed_texts: list[str] | None = None) -> ParsedMessage | None:
+def parse_text(
+    content: str,
+    embed_texts: list[str] | None = None,
+    fallback_puzzle_no: int | None = None,
+) -> ParsedMessage | None:
     """Pure parsing entrypoint — kept free of discord.py dependencies for unit tests."""
     subs = _parse_lines(content or "")
     if not subs:
         return None
     puzzle_no = _extract_puzzle_no(content or "", *(embed_texts or []))
+    if puzzle_no is None:
+        puzzle_no = fallback_puzzle_no
     if puzzle_no is None:
         return None
     return ParsedMessage(puzzle_no, tuple(subs))
@@ -111,4 +141,12 @@ def collect_embed_texts(message) -> list[str]:
 
 
 def parse_message(message) -> ParsedMessage | None:
-    return parse_text(message.content or "", collect_embed_texts(message))
+    fallback = None
+    created_at = getattr(message, "created_at", None)
+    if created_at is not None:
+        fallback = _puzzle_no_from_created_at(created_at)
+    return parse_text(
+        message.content or "",
+        collect_embed_texts(message),
+        fallback_puzzle_no=fallback,
+    )

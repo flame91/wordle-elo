@@ -27,6 +27,9 @@ class Config(BaseSettings):
     placement_games: int = Field(default=14, alias="PLACEMENT_GAMES")
     season_start_date: date = Field(default=date(2025, 10, 22), alias="SEASON_START_DATE")
 
+    # Date-based puzzle-no fallback (Wordle Activity messages no longer embed the number)
+    wordle_epoch_date: date = Field(default=date(2021, 6, 19), alias="WORDLE_EPOCH_DATE")
+
 
 def load_config() -> Config:
     return Config()  # type: ignore[call-arg]
@@ -38,7 +41,7 @@ def bootstrap() -> Config:
     user overrides. Call this in every entry point (bot + every script).
     """
     cfg = load_config()
-    from . import elo
+    from . import elo, parser
 
     elo.configure(
         initial=cfg.initial_elo,
@@ -47,4 +50,5 @@ def bootstrap() -> Config:
         new_player_games=cfg.new_player_games,
         delta_clamp=cfg.delta_clamp,
     )
+    parser.configure(epoch_date=cfg.wordle_epoch_date, tz_name=cfg.tz)
     return cfg
