@@ -1,0 +1,10 @@
+services:
+  bot:
+    build: .
+    container_name: wordle-elo
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Asia/Seoul
