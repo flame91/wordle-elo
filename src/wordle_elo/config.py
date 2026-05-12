@@ -18,12 +18,12 @@ class Config(BaseSettings):
     db_path: Path = Field(default=Path("/data/wordle.db"), alias="DB_PATH")
     log_dir: Path = Field(default=Path("/data/logs"), alias="LOG_DIR")
 
-    # ─── ELO knobs ───
     initial_elo: int = Field(default=1000, alias="INITIAL_ELO")
     k_factor: int = Field(default=24, alias="K_FACTOR")
     k_factor_new: int = Field(default=40, alias="K_FACTOR_NEW")
     new_player_games: int = Field(default=10, alias="NEW_PLAYER_GAMES")
     delta_clamp: int = Field(default=40, alias="DELTA_CLAMP")
+    damping_anchor: int = Field(default=1000, alias="DAMPING_ANCHOR")
     placement_games: int = Field(default=14, alias="PLACEMENT_GAMES")
     season_start_date: date = Field(default=date(2025, 10, 22), alias="SEASON_START_DATE")
 
@@ -49,6 +49,7 @@ def bootstrap() -> Config:
         k_new=cfg.k_factor_new,
         new_player_games=cfg.new_player_games,
         delta_clamp=cfg.delta_clamp,
+        damping_anchor=cfg.damping_anchor,
     )
     parser.configure(epoch_date=cfg.wordle_epoch_date, tz_name=cfg.tz)
     return cfg

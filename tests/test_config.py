@@ -10,9 +10,23 @@ def restore_elo_defaults():
     """Save and restore elo module globals so configure() in one test doesn't
     leak into others (test isolation)."""
     from wordle_elo import elo
-    saved = (elo.INITIAL, elo.K, elo.K_NEW, elo.NEW_PLAYER_GAMES, elo.DELTA_CLAMP)
+    saved = (
+        elo.INITIAL,
+        elo.K,
+        elo.K_NEW,
+        elo.NEW_PLAYER_GAMES,
+        elo.DELTA_CLAMP,
+        elo.DAMPING_ANCHOR,
+    )
     yield
-    elo.INITIAL, elo.K, elo.K_NEW, elo.NEW_PLAYER_GAMES, elo.DELTA_CLAMP = saved
+    (
+        elo.INITIAL,
+        elo.K,
+        elo.K_NEW,
+        elo.NEW_PLAYER_GAMES,
+        elo.DELTA_CLAMP,
+        elo.DAMPING_ANCHOR,
+    ) = saved
 
 
 def test_configure_overrides_module_globals(restore_elo_defaults):
@@ -27,7 +41,7 @@ def test_configure_overrides_module_globals(restore_elo_defaults):
 
 def test_configure_partial_update_keeps_others(restore_elo_defaults):
     from wordle_elo import elo
-    elo.configure(k=99)  # only K
+    elo.configure(k=99)
     assert elo.K == 99
     assert elo.K_NEW == 40  # untouched default
 
@@ -51,6 +65,7 @@ def test_bootstrap_pushes_env_into_elo(monkeypatch, tmp_path, restore_elo_defaul
     monkeypatch.setenv("K_FACTOR_NEW", "50")
     monkeypatch.setenv("NEW_PLAYER_GAMES", "15")
     monkeypatch.setenv("DELTA_CLAMP", "60")
+    monkeypatch.setenv("DAMPING_ANCHOR", "1300")
     # pydantic-settings reads .env file by default — point it elsewhere
     monkeypatch.chdir(tmp_path)
 
@@ -64,4 +79,6 @@ def test_bootstrap_pushes_env_into_elo(monkeypatch, tmp_path, restore_elo_defaul
     assert elo.K_NEW == 50
     assert elo.NEW_PLAYER_GAMES == 15
     assert elo.DELTA_CLAMP == 60
+    assert elo.DAMPING_ANCHOR == 1300
     assert cfg.initial_elo == 1100
+    assert cfg.damping_anchor == 1300

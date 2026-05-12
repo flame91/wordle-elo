@@ -22,11 +22,11 @@ def test_single_puzzle_two_players_updates_elo():
     report = simulate([msg], display_names={1: "alice", 2: "bob"})
 
     alice, bob = report.players[1], report.players[2]
-    # Both are new players (games_played_before=0) so K=K_NEW=40.
-    # alice wins 3/6: field=40*(1-0.5)=+20, speed=+1 → +21
-    # bob loses 5/6: field=-20, speed=-1 → -21
-    assert alice.elo == 1021
-    assert bob.elo == 979
+    # Both are new players (games_played_before=0) so K=K_NEW=40, base=±10.
+    # alice solves 3/6: base +10, speed +1, streak 0 (streak=1 < 3) → +11
+    # bob   solves 5/6: base +10, speed -1, streak 0                → +9
+    assert alice.elo == 1011
+    assert bob.elo == 1009
     # Both 3/6 and 5/6 are solves (only X=7 counts as a loss for streak/win purposes)
     assert alice.games_won == 1 and bob.games_won == 1
     assert alice.current_streak == 1 and bob.current_streak == 1
@@ -87,8 +87,8 @@ def test_leaderboard_rows_sorted_desc_by_elo():
     rows = report.leaderboard_rows(placement_games=2)
     assert [r["display_name"] for r in rows] == ["alice", "bob", "carol"]
     assert rows[0]["elo"] > rows[1]["elo"] > rows[2]["elo"]
-    # All three played 5 games (above placement_games=2), so should have a real tier
-    assert "Provisional" not in {r["tier"] for r in rows}
+    # All three played 5 games (above placement_games=2), so no "(+)" suffix.
+    assert not any(r["tier"].endswith("(+)") for r in rows)
 
 
 def test_biggest_swings_tracked():
