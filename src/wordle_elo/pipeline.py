@@ -82,13 +82,17 @@ async def _apply(session, bot, parsed, source_msg):
     players = {p.user_id: p for p in rows}
 
     ratings_before = {uid: players[uid].elo for uid in submitter_ids}
+    games_played_before = {uid: players[uid].games_played for uid in submitter_ids}
     streaks_after: dict[int, int] = {}
     for s in parsed.submissions:
         prev = players[s.user_id].current_streak
         streaks_after[s.user_id] = (prev + 1) if s.won else 0
 
     subs_tuple = [(s.user_id, s.guesses, s.hard_mode) for s in parsed.submissions]
-    deltas = compute_daily(subs_tuple, ratings_before, streaks_after)
+    deltas = compute_daily(
+        subs_tuple, ratings_before, streaks_after,
+        games_played_before=games_played_before,
+    )
 
     entries = []
     for s in parsed.submissions:

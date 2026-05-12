@@ -86,6 +86,7 @@ def simulate(
                 )
 
         ratings = {s.user_id: state[s.user_id].elo for s in parsed.submissions}
+        gp_before = {s.user_id: state[s.user_id].games_played for s in parsed.submissions}
         streaks_after: dict[int, int] = {}
         for s in parsed.submissions:
             prev = state[s.user_id].current_streak
@@ -95,6 +96,7 @@ def simulate(
             [(s.user_id, s.guesses, s.hard_mode) for s in parsed.submissions],
             ratings,
             streaks_after,
+            games_played_before=gp_before,
         )
 
         for s in parsed.submissions:

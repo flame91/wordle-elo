@@ -69,6 +69,7 @@ async def recompute(cfg) -> None:
                 ).scalars().all()
             }
             ratings_before = {uid: players[uid].elo for uid in submitter_ids}
+            gp_before = {uid: players[uid].games_played for uid in submitter_ids}
 
             streaks_after = {}
             for s in subs:
@@ -77,7 +78,10 @@ async def recompute(cfg) -> None:
                 streaks_after[s.user_id] = (prev + 1) if won else 0
 
             subs_tuple = [(s.user_id, s.guesses, bool(s.hard_mode)) for s in subs]
-            deltas = compute_daily(subs_tuple, ratings_before, streaks_after)
+            deltas = compute_daily(
+                subs_tuple, ratings_before, streaks_after,
+                games_played_before=gp_before,
+            )
 
             for s in subs:
                 p = players[s.user_id]

@@ -15,9 +15,18 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 INITIAL = 1000
-K = 24
+K = 24                 # regular K-factor (FIDE-style "established" rating)
+K_NEW = 40             # K for new players in their first NEW_PLAYER_GAMES games
+NEW_PLAYER_GAMES = 10  # threshold below which K_NEW applies
 SPEED = {1: 3, 2: 2, 3: 1, 4: 0, 5: -1, 6: -2, 7: -4}  # 7 = X (failed)
 DELTA_CLAMP = 40
+
+
+def k_factor(games_played_before: int) -> int:
+    """Per-player K. New players (< NEW_PLAYER_GAMES) move faster so they
+    converge to their true rating in ~10 games instead of months.
+    """
+    return K_NEW if games_played_before < NEW_PLAYER_GAMES else K
 
 
 def expected(r_i: int, r_j: int) -> float:
@@ -57,33 +66,39 @@ def compute_daily(
     subs: Sequence[tuple[int, int, bool]],
     ratings: Mapping[int, int],
     streaks_after: Mapping[int, int],
-    k: int = K,
+    games_played_before: Mapping[int, int] | None = None,
+    k: int | None = None,
 ) -> dict[int, DailyDelta]:
     """Compute one day's Elo deltas for all participants.
 
     Args:
         subs: [(user_id, guesses, hard_mode), ...] for all submitters today
         ratings: {user_id: elo_before_today} for every submitter
-        streaks_after: {user_id: current_streak_value_after_today's_result}
-        k: K-factor (default 24)
+        streaks_after: {user_id: current_streak_value_after_today}
+        games_played_before: {user_id: games_played_before_today}. Drives the
+            per-player K (K_NEW for first NEW_PLAYER_GAMES, K thereafter). If
+            omitted, every player is treated as established (K=24).
+        k: optional override; if set, used as a single K for all players
+            (handy for tests).
 
     Returns:
-        {user_id: DailyDelta}. Empty dict if fewer than 2 submitters
-        (no comparison possible → no rating change).
+        {user_id: DailyDelta}. Empty dict when n<2 (no comparison possible).
     """
     n = len(subs)
     if n < 2:
         return {}
+    gp_before = games_played_before or {}
     out: dict[int, DailyDelta] = {}
     for uid_i, g_i, hard_i in subs:
         r_i = ratings[uid_i]
+        k_i = k if k is not None else k_factor(gp_before.get(uid_i, NEW_PLAYER_GAMES))
         s_sum = e_sum = 0.0
         for uid_j, g_j, _ in subs:
             if uid_j == uid_i:
                 continue
             s_sum += actual(g_i, g_j)
             e_sum += expected(r_i, ratings[uid_j])
-        d_field = (k / (n - 1)) * (s_sum - e_sum)
+        d_field = (k_i / (n - 1)) * (s_sum - e_sum)
         d_speed = float(SPEED[g_i])
         won = g_i <= 6
         d_streak = float(streak_bonus(streaks_after[uid_i], won))
