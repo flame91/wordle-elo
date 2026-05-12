@@ -4,7 +4,7 @@ import logging.handlers
 from pathlib import Path
 
 from .bot import WordleEloBot
-from .config import load_config
+from .config import bootstrap
 
 
 def setup_logging(log_dir: Path) -> None:
@@ -29,7 +29,7 @@ def setup_logging(log_dir: Path) -> None:
 
 
 async def main() -> None:
-    cfg = load_config()
+    cfg = bootstrap()
     setup_logging(cfg.log_dir)
     bot = WordleEloBot(cfg)
     await bot.start(cfg.discord_bot_token)

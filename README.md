@@ -53,7 +53,7 @@ If the format differs from what `parser.py` expects, adjust the regex constants 
 
 ## 4. Day 2 — dry-run (preview ELO without committing)
 
-Before the real backfill writes anything, simulate the entire channel history in memory and print the leaderboard. Tweak the ELO knobs (`K_FACTOR`, speed bonuses in `src/wordle_elo/elo.py`, tier thresholds in `src/wordle_elo/tier.py`) and rerun until the rankings feel right:
+Before the real backfill writes anything, simulate the entire channel history in memory and print the leaderboard. Tweak the ELO knobs in `.env` (`K_FACTOR`, `K_FACTOR_NEW`, `NEW_PLAYER_GAMES`, `DELTA_CLAMP`, `INITIAL_ELO`, `PLACEMENT_GAMES`) and rerun until the rankings feel right. Speed bonuses and tier thresholds aren't env-tunable — edit `src/wordle_elo/elo.py:SPEED` and `src/wordle_elo/tier.py:TIERS` for those.
 
 ```bash
 docker compose run --rm bot python -m wordle_elo.scripts.dry_run

@@ -17,7 +17,7 @@ import logging
 
 import discord
 
-from ..config import load_config
+from ..config import bootstrap
 from ..dryrun import simulate
 from ..leaderboard import format_leaderboard_console
 from ..parser import parse_message
@@ -106,7 +106,7 @@ def main():
                    help="Max messages to scan (default: all channel history)")
     args = p.parse_args()
 
-    cfg = load_config()
+    cfg = bootstrap()
     channel_id = args.channel_id or cfg.wordle_channel_id
     client = DryRunClient(cfg, channel_id, args.since_puzzle, args.limit)
     asyncio.run(client.start(cfg.discord_bot_token))
