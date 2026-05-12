@@ -12,7 +12,6 @@ class Player(Base):
     __tablename__ = "players"
 
     user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    display_name: Mapped[str] = mapped_column(String, nullable=False)
     elo: Mapped[int] = mapped_column(Integer, nullable=False, default=1000)
     games_played: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     games_won: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -20,6 +19,24 @@ class Player(Base):
     best_streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     first_seen_at: Mapped[datetime] = mapped_column(nullable=False)
     last_played_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
+class Nickname(Base):
+    """Display name for a user, refreshed from channel messages and live lookups.
+
+    Decoupled from `Player` so identity refresh has no bearing on ELO state and
+    so the backfill script can populate names from `msg.author` without touching
+    rating rows.
+    """
+
+    __tablename__ = "nicknames"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    display_name: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    # 'member' (guild nickname or member.display_name) | 'user' (global display)
+    # | 'channel_author' (refresh_nicknames script)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False)
 
 
 class Submission(Base):

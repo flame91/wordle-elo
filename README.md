@@ -119,6 +119,7 @@ Wait for the next 12:00 AM Wordle APP message to arrive — the bot should reply
 | Backup DB | `cp data/wordle.db data/wordle.db.$(date +%F).bak` |
 | Restore DB | `cp data/wordle.db.YYYY-MM-DD.bak data/wordle.db && docker compose restart` |
 | Recompute all ELO from submissions | `docker compose run --rm bot python -m wordle_elo.scripts.recompute_elo` |
+| Refresh nicknames from channel author history | `docker compose run --rm bot python -m wordle_elo.scripts.refresh_nicknames` |
 | Reprocess a specific puzzle (e.g. parser fix) | Delete the row from `processed_puzzles`, then run backfill |
 
 ```sql

@@ -15,7 +15,7 @@ from sqlalchemy import select
 from .elo import INITIAL as ELO_INITIAL
 from .elo import compute_daily
 from .leaderboard import format_daily_embed
-from .models import EloHistory, Player, ProcessedPuzzle, Submission
+from .models import EloHistory, Nickname, Player, ProcessedPuzzle, Submission
 from .parser import parse_message
 from .tier import assign_tier
 
@@ -61,19 +61,12 @@ async def _apply(session, bot, parsed, source_msg):
 
     submitter_ids = [s.user_id for s in parsed.submissions]
 
-    # Ensure player rows exist
+    # Ensure player rows exist + refresh nicknames from the live cache
     for s in parsed.submissions:
         existing = await session.get(Player, s.user_id)
         if existing is None:
-            display_name = await _resolve_display_name(bot, s.user_id)
-            session.add(
-                Player(
-                    user_id=s.user_id,
-                    display_name=display_name,
-                    elo=ELO_INITIAL,
-                    first_seen_at=when,
-                )
-            )
+            session.add(Player(user_id=s.user_id, elo=ELO_INITIAL, first_seen_at=when))
+        await _upsert_nickname(session, bot, s.user_id, now)
     await session.flush()
 
     rows = (
@@ -142,7 +135,6 @@ async def _apply(session, bot, parsed, source_msg):
         entries.append(
             {
                 "user_id": s.user_id,
-                "display_name": p.display_name,
                 "guesses": s.guesses,
                 "hard_mode": s.hard_mode,
                 "elo_before": elo_before,
@@ -169,11 +161,56 @@ async def _apply(session, bot, parsed, source_msg):
     return {"puzzle_no": parsed.puzzle_no, "entries": entries}
 
 
-async def _resolve_display_name(bot, user_id: int) -> str:
-    user = bot.get_user(user_id) if bot is not None else None
-    if user is None and bot is not None:
+async def _resolve_display_name(bot, user_id: int) -> tuple[str | None, str]:
+    """Lookup the channel-visible name without making extra HTTP calls.
+
+    Returns (name, source). Source is 'member' if we got Member.display_name
+    (server nickname or global display), 'user' if only a global User was
+    available, or 'fallback' (with name=None) so callers can decide whether to
+    overwrite an existing nickname row.
+    """
+    if bot is None:
+        return None, "fallback"
+    guild_id = getattr(getattr(bot, "cfg", None), "discord_guild_id", None)
+    if guild_id is not None:
+        guild = bot.get_guild(guild_id)
+        if guild is not None:
+            member = guild.get_member(user_id)
+            if member is not None:
+                return member.display_name, "member"
+    user = bot.get_user(user_id)
+    if user is None:
         try:
             user = await bot.fetch_user(user_id)
         except Exception:
             user = None
-    return user.display_name if user is not None else f"user_{user_id}"
+    if user is not None:
+        return user.display_name, "user"
+    return None, "fallback"
+
+
+async def _upsert_nickname(session, bot, user_id: int, when: datetime) -> None:
+    """Refresh the user's display name from live Discord state.
+
+    On a 'fallback' resolution (couldn't reach Discord at all) we leave any
+    existing Nickname row untouched — better stale than overwritten with garbage.
+    The refresh_nicknames script handles bulk repair from channel author history.
+    """
+    name, source = await _resolve_display_name(bot, user_id)
+    existing = await session.get(Nickname, user_id)
+    if name is None:
+        return
+    if existing is None:
+        session.add(
+            Nickname(
+                user_id=user_id,
+                display_name=name,
+                source=source,
+                updated_at=when,
+            )
+        )
+        return
+    if existing.display_name != name or existing.source != source:
+        existing.display_name = name
+        existing.source = source
+        existing.updated_at = when
