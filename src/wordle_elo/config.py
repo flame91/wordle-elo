@@ -25,7 +25,7 @@ class Config(BaseSettings):
     new_player_games: int = Field(default=10, alias="NEW_PLAYER_GAMES")
     delta_clamp: int = Field(default=40, alias="DELTA_CLAMP")
     placement_games: int = Field(default=14, alias="PLACEMENT_GAMES")
-    season_start_date: date = Field(default=date(2026, 5, 12), alias="SEASON_START_DATE")
+    season_start_date: date = Field(default=date(2025, 10, 22), alias="SEASON_START_DATE")
 
 
 def load_config() -> Config:
