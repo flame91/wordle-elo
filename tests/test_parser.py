@@ -1,8 +1,12 @@
+from datetime import date, datetime, timezone
+
 from wordle_elo.parser import (
     LINE_RE,
     USER_RE,
     X_FAIL_GUESSES,
     ParsedSubmission,
+    _puzzle_no_from_created_at,
+    configure,
     parse_text,
 )
 
@@ -98,3 +102,31 @@ def test_line_regex_matches_crown_prefix():
     assert m is not None
     assert m.group("guesses") == "3"
     assert USER_RE.findall(m.group("users")) == ["111"]
+
+
+def test_fallback_puzzle_no_used_when_text_has_none():
+    content = "3/6: <@111>"
+    parsed = parse_text(content, [], fallback_puzzle_no=1787)
+    assert parsed is not None
+    assert parsed.puzzle_no == 1787
+
+
+def test_text_puzzle_no_overrides_fallback():
+    content = "Wordle #500\n3/6: <@111>"
+    parsed = parse_text(content, [], fallback_puzzle_no=9999)
+    assert parsed is not None
+    assert parsed.puzzle_no == 500
+
+
+def test_no_submissions_returns_none_even_with_fallback():
+    content = "Foo was playing"
+    parsed = parse_text(content, [], fallback_puzzle_no=1787)
+    assert parsed is None
+
+
+def test_puzzle_no_from_created_at_kst_midnight():
+    # Reset module state in case prior tests touched it.
+    configure(epoch_date=date(2021, 6, 19), tz_name="Asia/Seoul")
+    # 2026-05-11T15:01 UTC = 2026-05-12T00:01 KST → yesterday's puzzle = May 11.
+    msg_ts = datetime(2026, 5, 11, 15, 1, tzinfo=timezone.utc)
+    assert _puzzle_no_from_created_at(msg_ts) == (date(2026, 5, 11) - date(2021, 6, 19)).days
