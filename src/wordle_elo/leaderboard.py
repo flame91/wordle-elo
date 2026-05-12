@@ -6,6 +6,8 @@ import unicodedata
 
 import discord
 
+from .tier import strip_provisional
+
 CROWN = "\U0001f451"
 PAD = "　"  # full-width space, aligns with crown
 
@@ -16,8 +18,11 @@ TIER_EMOJI = {
     "Gold": "\U0001f947",          # 🥇
     "Silver": "\U0001f948",        # 🥈
     "Bronze": "\U0001f949",        # 🥉
-    "Provisional": "\U0001f31f",   # 🌟
 }
+
+
+def _tier_emoji(tier: str) -> str:
+    return TIER_EMOJI.get(strip_provisional(tier), "")
 
 
 def _score(guesses: int, hard_mode: bool) -> str:
@@ -37,7 +42,6 @@ def _avg_str(avg: float | None) -> str:
     return f"{avg:.2f}" if avg is not None else "—"
 
 
-# ─── Per-puzzle daily summary (posted to channel as reply) ───
 
 def format_daily_embed(puzzle_no: int, entries: list[dict]) -> discord.Embed:
     if not entries:
@@ -54,7 +58,7 @@ def format_daily_embed(puzzle_no: int, entries: list[dict]) -> discord.Embed:
         score = _score(e["guesses"], e["hard_mode"])
         delta_str = _delta(e["delta_total"])
         tier = e.get("tier", "")
-        tier_emoji = TIER_EMOJI.get(tier, "")
+        tier_emoji = _tier_emoji(tier)
         lines.append(
             f"{prefix} **{score}** <@{e['user_id']}>  "
             f"`{e['elo_after']:>4}` ({delta_str})  {tier_emoji} {tier}"
@@ -69,7 +73,6 @@ def format_daily_embed(puzzle_no: int, entries: list[dict]) -> discord.Embed:
     return embed
 
 
-# ─── Full leaderboard (slash command response) ───
 # Column order: 순위 / 닉네임 / 계급 / ELO / 승/게임(승률) / 최대연승 / 성공시 평균 시도
 
 def format_full_leaderboard(rows: list[dict]) -> discord.Embed:
@@ -79,7 +82,7 @@ def format_full_leaderboard(rows: list[dict]) -> discord.Embed:
     for i, p in enumerate(rows, start=1):
         win_pct = (p["games_won"] / p["games_played"] * 100) if p["games_played"] else 0
         tier = p.get("tier", "")
-        emoji = TIER_EMOJI.get(tier, "")
+        emoji = _tier_emoji(tier)
         avg = _avg_str(p.get("avg_winning_guesses"))
         lines.append(
             f"`#{i:>2}` <@{p['user_id']}>  {emoji} **{tier}**  "
@@ -99,7 +102,6 @@ def format_full_leaderboard(rows: list[dict]) -> discord.Embed:
     return embed
 
 
-# ─── /rank one-player view ───
 
 def format_rank_embed(
     player,
@@ -111,7 +113,7 @@ def format_rank_embed(
 ) -> discord.Embed:
     win_pct = (player.games_won / player.games_played * 100) if player.games_played else 0
     lines = [
-        f"**계급**: {TIER_EMOJI.get(tier, '')} {tier}",
+        f"**계급**: {_tier_emoji(tier)} {tier}",
         f"**ELO**: {player.elo}",
         f"**순위**: {rank} / {total}",
         f"**승/게임**: {player.games_won}/{player.games_played} ({win_pct:.0f}%)",
@@ -139,7 +141,6 @@ def format_history_embed(user_id: int, rows: list) -> discord.Embed:
     )
 
 
-# ─── Console table for dry-run output ───
 
 def _visual_width(s: str) -> int:
     """East-Asian aware width: CJK chars count as 2 columns."""
