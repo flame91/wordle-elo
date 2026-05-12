@@ -97,7 +97,7 @@ def format_full_leaderboard(rows: list[dict]) -> discord.Embed:
         color=discord.Color.blue(),
     )
     embed.set_footer(
-        text="순위 · 닉네임 · 계급 · ELO · 승/게임(승률) · 🔥최대연승 · ⌀성공시 평균 시도"
+        text="Rank · Name · Tier · ELO · W/G (Win%) · 🔥Best streak · ⌀Avg guesses (wins)"
     )
     return embed
 
@@ -113,16 +113,16 @@ def format_rank_embed(
 ) -> discord.Embed:
     win_pct = (player.games_won / player.games_played * 100) if player.games_played else 0
     lines = [
-        f"**계급**: {_tier_emoji(tier)} {tier}",
+        f"**Tier**: {_tier_emoji(tier)} {tier}",
         f"**ELO**: {player.elo}",
-        f"**순위**: {rank} / {total}",
-        f"**승/게임**: {player.games_won}/{player.games_played} ({win_pct:.0f}%)",
-        f"**최대 연승**: {player.best_streak} (현재 {player.current_streak})",
+        f"**Rank**: {rank} / {total}",
+        f"**W/G**: {player.games_won}/{player.games_played} ({win_pct:.0f}%)",
+        f"**Best streak**: {player.best_streak} (current {player.current_streak})",
     ]
     if avg_winning_guesses is not None:
-        lines.append(f"**성공시 평균 시도**: {avg_winning_guesses:.2f}")
+        lines.append(f"**Avg guesses (wins)**: {avg_winning_guesses:.2f}")
     if recent_avg_guesses is not None:
-        lines.append(f"**최근 14일 평균 시도**: {recent_avg_guesses:.2f}")
+        lines.append(f"**Avg guesses (last 14 days)**: {recent_avg_guesses:.2f}")
     return discord.Embed(
         title=f"<@{player.user_id}>",
         description="\n".join(lines),
