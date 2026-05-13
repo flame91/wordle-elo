@@ -18,13 +18,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-from datetime import datetime, timezone
 
 import discord
 
 from ..config import bootstrap
 from ..db import init_db, make_engine, make_sessionmaker
-from ..models import Nickname
+from ..nicknames import refresh_from_channel_history
 
 log = logging.getLogger(__name__)
 
@@ -46,46 +45,14 @@ class RefreshClient(discord.Client):
             channel = self.get_channel(self.channel_id) or await self.fetch_channel(self.channel_id)
             print(f"# Scanning #{channel.name} for author display names", flush=True)
 
-            # Collect the most recent display name per user_id.
-            latest: dict[int, tuple[str, str]] = {}
-            scanned = 0
-            async for msg in channel.history(limit=self.limit):
-                scanned += 1
-                author = msg.author
-                uid = author.id
-                if uid in latest:
-                    continue
-                source = "channel_author_member" if isinstance(author, discord.Member) else "channel_author_user"
-                latest[uid] = (author.display_name, source)
-
-            print(f"# Scanned {scanned} messages, {len(latest)} unique authors", flush=True)
-
-            now = datetime.now(timezone.utc)
-            inserted = updated = unchanged = 0
-            async with self.sessionmaker() as session:
-                for uid, (name, source) in latest.items():
-                    existing = await session.get(Nickname, uid)
-                    if existing is None:
-                        session.add(
-                            Nickname(
-                                user_id=uid,
-                                display_name=name,
-                                source=source,
-                                updated_at=now,
-                            )
-                        )
-                        inserted += 1
-                    elif existing.display_name != name or existing.source != source:
-                        existing.display_name = name
-                        existing.source = source
-                        existing.updated_at = now
-                        updated += 1
-                    else:
-                        unchanged += 1
-                await session.commit()
+            result = await refresh_from_channel_history(
+                self, self.sessionmaker, self.channel_id, self.limit
+            )
 
             print(
-                f"# Done. inserted={inserted} updated={updated} unchanged={unchanged}",
+                f"# Scanned {result.scanned} messages, "
+                f"inserted={result.inserted} updated={result.updated} "
+                f"unchanged={result.unchanged}",
                 flush=True,
             )
         finally:

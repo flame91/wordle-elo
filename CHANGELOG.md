@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `/leaderboard` renders stored `Nickname.display_name` instead of relying
+  solely on `<@id>` mention resolution, so ex-members and uncached users no
+  longer show up as raw IDs. The `<@id>` form is kept as a fallback.
+- When `/leaderboard` finds a player without a `Nickname` row, it now auto-
+  triggers `refresh_from_channel_history` (the shared core of the
+  `refresh_nicknames` script) over the most recent 2000 messages on the
+  live bot connection before rendering.
+
+### Added
+- `wordle_elo.nicknames` module exposing `refresh_from_channel_history`,
+  reused by both the standalone refresh script and the leaderboard cog.
+
 ## [1.0.0] - 2026-05-13
 
 ### Added
