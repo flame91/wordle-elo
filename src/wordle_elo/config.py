@@ -23,7 +23,7 @@ class Config(BaseSettings):
     k_factor_new: int = Field(default=40, alias="K_FACTOR_NEW")
     new_player_games: int = Field(default=10, alias="NEW_PLAYER_GAMES")
     delta_clamp: int = Field(default=40, alias="DELTA_CLAMP")
-    damping_anchor: int = Field(default=1000, alias="DAMPING_ANCHOR")
+    damping_anchor: int = Field(default=800, alias="DAMPING_ANCHOR")
     placement_games: int = Field(default=14, alias="PLACEMENT_GAMES")
     season_start_date: date = Field(default=date(2025, 10, 22), alias="SEASON_START_DATE")
 

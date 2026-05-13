@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -52,7 +54,21 @@ class RankCog(commands.Cog):
                 .where(Submission.user_id == target.id, Submission.guesses <= 6)
             )
 
+            since_7d = datetime.now(timezone.utc) - timedelta(days=7)
+            recent_7d = (
+                await session.execute(
+                    select(Submission.guesses)
+                    .where(Submission.user_id == target.id)
+                    .where(Submission.submitted_at >= since_7d)
+                )
+            ).scalars().all()
+
             all_ratings = [r for (r,) in await session.execute(select(Player.elo))]
+
+        recent_7d_games = len(recent_7d)
+        recent_7d_wins = sum(1 for g in recent_7d if g <= 6)
+        winning = [g for g in recent_7d if g <= 6]
+        recent_7d_avg = (sum(winning) / len(winning)) if winning else None
 
         tier = assign_tier(player.elo, all_ratings, player.games_played)
         embed = format_rank_embed(
@@ -62,6 +78,9 @@ class RankCog(commands.Cog):
             recent_avg_guesses=float(recent_avg) if recent_avg is not None else None,
             avg_winning_guesses=float(all_time_avg) if all_time_avg is not None else None,
             tier=tier,
+            recent_7d_games=recent_7d_games,
+            recent_7d_wins=recent_7d_wins,
+            recent_7d_avg_guesses=recent_7d_avg,
         )
         await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 

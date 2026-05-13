@@ -112,6 +112,9 @@ def format_rank_embed(
     recent_avg_guesses: float | None = None,
     tier: str = "",
     avg_winning_guesses: float | None = None,
+    recent_7d_games: int | None = None,
+    recent_7d_wins: int | None = None,
+    recent_7d_avg_guesses: float | None = None,
 ) -> discord.Embed:
     win_pct = (player.games_won / player.games_played * 100) if player.games_played else 0
     lines = [
@@ -124,7 +127,19 @@ def format_rank_embed(
     if avg_winning_guesses is not None:
         lines.append(f"**Avg guesses (wins)**: {avg_winning_guesses:.2f}")
     if recent_avg_guesses is not None:
-        lines.append(f"**Avg guesses (last 14 days)**: {recent_avg_guesses:.2f}")
+        lines.append(f"**Avg guesses (last 14 puzzles)**: {recent_avg_guesses:.2f}")
+
+    if recent_7d_games is not None and recent_7d_games > 0:
+        win_pct_7d = (recent_7d_wins or 0) / recent_7d_games * 100
+        seven_line = (
+            f"**Last 7 days**: {recent_7d_wins}/{recent_7d_games} ({win_pct_7d:.0f}%)"
+        )
+        if recent_7d_avg_guesses is not None:
+            seven_line += f"  ·  ⌀{recent_7d_avg_guesses:.2f}"
+        lines.append(seven_line)
+    elif recent_7d_games == 0:
+        lines.append("**Last 7 days**: no plays")
+
     return discord.Embed(
         title=f"<@{player.user_id}>",
         description="\n".join(lines),
