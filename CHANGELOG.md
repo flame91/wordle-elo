@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-13
+
 ### Added
 - `/version` slash command — surfaces recent release entries from this file,
   with the head entry highlighted. Accepts `count:N` (1..20, default 5).
