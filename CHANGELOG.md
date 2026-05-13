@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- ELO scoring switched to a **day-relative** speed bonus. Instead of a fixed
+  4-guess baseline, `speed_bonus = SPEED_SLOPE * (day_baseline - guesses)`
+  where `day_baseline` is the mean guesses of today's solvers. On an easy day
+  where everyone solves in 2, no one earns a speed bonus; on a brutal day
+  where most fail, the few solvers are rewarded against the field.
+- **Streak bonus removed.** Win rate already encodes streakiness; the
+  separate bonus double-counted that signal (consistent with Glicko-2,
+  TrueSkill, and modern LoL).
+- **Hard-mode bonus removed.** The Wordle Activity `*` marker is a per-player
+  game-setting toggle, not a puzzle-difficulty signal — rewarding it with a
+  flat constant had no principled basis. The day-relative speed bonus
+  naturally accounts for any aggregate effect.
+- `DAMPING_ANCHOR` default lowered from 1000 to 800, tightening the ceiling
+  on high-win-rate players (e.g. ~95% solver equilibrium drops from ~3400
+  to ~2700).
+- `/leaderboard` renders stored `Nickname.display_name` instead of relying
+  solely on `<@id>` mention resolution, so ex-members and uncached users no
+  longer show up as raw IDs. The `<@id>` form is kept as a fallback.
+- When `/leaderboard` finds a player without a `Nickname` row, it now auto-
+  triggers `refresh_from_channel_history` (the shared core of the
+  `refresh_nicknames` script) over the most recent 2000 messages on the
+  live bot connection before rendering.
+
+### Added
+- `wordle_elo.nicknames` module exposing `refresh_from_channel_history`,
+  reused by both the standalone refresh script and the leaderboard cog.
+- `/rank` now includes a **Last 7 days** window (W/G, win%, and average
+  guesses) alongside the existing all-time and last-14-puzzles stats, so
+  short-term form is visible.
+- `docs/elo.md` — scoring reference with formulas (base, day-relative
+  speed, damping), an equilibrium table by win rate, and a worked example.
+
 ## [1.0.0] - 2026-05-13
 
 ### Added
