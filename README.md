@@ -108,6 +108,7 @@ Wait for the next 12:00 AM Wordle APP message to arrive — the bot should reply
 - `/rank`        — your stats
 - `/leaderboard` — full standings
 - `/history @someone 14` — recent results
+- `/version`     — recent release entries from `CHANGELOG.md` (head highlighted)
 
 ## Operations
 

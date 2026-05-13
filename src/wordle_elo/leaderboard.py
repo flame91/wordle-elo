@@ -7,6 +7,7 @@ import unicodedata
 import discord
 
 from .tier import strip_provisional
+from .version import VersionEntry
 
 CROWN = "\U0001f451"
 PAD = "　"  # full-width space, aligns with crown
@@ -126,6 +127,34 @@ def format_rank_embed(
         title=f"<@{player.user_id}>",
         description="\n".join(lines),
         color=discord.Color.green(),
+    )
+
+
+_VERSION_BODY_CAP = 500
+
+
+def format_version_embed(entries: list[VersionEntry]) -> discord.Embed:
+    if not entries:
+        return discord.Embed(
+            title="Version history",
+            description="No CHANGELOG entries found.",
+            color=discord.Color.dark_teal(),
+        )
+    blocks: list[str] = []
+    for i, e in enumerate(entries):
+        header = f"**[{e.version}]**"
+        if e.date:
+            header += f" — {e.date}"
+        if i == 0:
+            header = f"▶ {header}  *(current)*"
+        body = e.body
+        if len(body) > _VERSION_BODY_CAP:
+            body = body[:_VERSION_BODY_CAP].rstrip() + "…"
+        blocks.append(f"{header}\n{body}" if body else header)
+    return discord.Embed(
+        title="Version history",
+        description="\n\n".join(blocks),
+        color=discord.Color.dark_teal(),
     )
 
 
