@@ -7,17 +7,17 @@ import unicodedata
 import discord
 
 from .tier import strip_provisional
+from .version import VersionEntry
 
 CROWN = "\U0001f451"
 PAD = "　"  # full-width space, aligns with crown
 
 TIER_EMOJI = {
-    "Challenger": "\U0001f3c6",   # 🏆
     "Diamond": "\U0001f48e",       # 💎
-    "Platinum": "\U0001f947",      # 🥇
-    "Gold": "\U0001f947",          # 🥇
-    "Silver": "\U0001f948",        # 🥈
-    "Bronze": "\U0001f949",        # 🥉
+    "Gold":    "\U0001f947",       # 🥇
+    "Silver":  "\U0001f948",       # 🥈
+    "Bronze":  "\U0001f949",       # 🥉
+    "Iron":    "♿️",     # ♿️
 }
 
 
@@ -127,6 +127,55 @@ def format_rank_embed(
         title=f"<@{player.user_id}>",
         description="\n".join(lines),
         color=discord.Color.green(),
+    )
+
+
+_VERSION_BODY_CAP = 500
+
+
+def format_version_embed(entries: list[VersionEntry]) -> discord.Embed:
+    if not entries:
+        return discord.Embed(
+            title="Version history",
+            description="No CHANGELOG entries found.",
+            color=discord.Color.dark_teal(),
+        )
+    blocks: list[str] = []
+    for i, e in enumerate(entries):
+        header = f"**[{e.version}]**"
+        if e.date:
+            header += f" — {e.date}"
+        if i == 0:
+            header = f"▶ {header}  *(current)*"
+        body = e.body
+        if len(body) > _VERSION_BODY_CAP:
+            body = body[:_VERSION_BODY_CAP].rstrip() + "…"
+        blocks.append(f"{header}\n{body}" if body else header)
+    return discord.Embed(
+        title="Version history",
+        description="\n\n".join(blocks),
+        color=discord.Color.dark_teal(),
+    )
+
+
+def format_help_embed(
+    commands_info: list[tuple[str, str, list[tuple[str, str]]]],
+) -> discord.Embed:
+    if not commands_info:
+        return discord.Embed(
+            title="Commands",
+            description="No commands registered.",
+            color=discord.Color.blurple(),
+        )
+    lines: list[str] = []
+    for name, desc, params in commands_info:
+        lines.append(f"`/{name}` — {desc}" if desc else f"`/{name}`")
+        for pname, pdesc in params:
+            lines.append(f"　• `{pname}` — {pdesc}" if pdesc else f"　• `{pname}`")
+    return discord.Embed(
+        title="Commands",
+        description="\n".join(lines),
+        color=discord.Color.blurple(),
     )
 
 

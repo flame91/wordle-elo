@@ -1,4 +1,4 @@
-"""Tier classification — top-1 Challenger, pure percentile for the rest.
+"""Tier classification — top-1 Diamond, bottom-1 Iron, percentile for the rest.
 
 Players who haven't reached PROVISIONAL_GAMES yet still get a tier label, but
 suffixed with "(+)" to indicate the ranking is preliminary.
@@ -8,13 +8,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-# (name, top percentile cutoff). Challenger is reserved for the rank-1 player(s)
-# and handled separately below.
+# (name, top percentile cutoff). Diamond also catches rank-1; Iron is reserved
+# for the rank-last player(s). Both are handled separately below.
 TIERS: list[tuple[str, float]] = [
-    ("Diamond",  0.10),
-    ("Platinum", 0.25),
-    ("Gold",     0.50),
-    ("Silver",   0.75),
+    ("Diamond", 0.05),
+    ("Gold",    0.20),
+    ("Silver",  0.50),
 ]
 PROVISIONAL_GAMES = 14
 PROVISIONAL_SUFFIX = "(+)"
@@ -25,7 +24,9 @@ def base_tier(player_elo: int, all_ratings: Sequence[int]) -> str:
     if not all_ratings:
         return "Bronze"
     if player_elo == max(all_ratings):
-        return "Challenger"
+        return "Diamond"
+    if player_elo == min(all_ratings):
+        return "Iron"
     n = len(all_ratings)
     pct_above = sum(1 for r in all_ratings if r > player_elo) / n
     for name, top_pct in TIERS:

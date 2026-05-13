@@ -1,6 +1,6 @@
 [project]
 name = "wordle-elo"
-version = "0.1.0"
+version = "1.0.0"
 description = "ELO ranking bot for Discord Wordle Activity daily summaries"
 requires-python = ">=3.12"
 dependencies = [
