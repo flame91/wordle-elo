@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/rank` now includes a **Last 7 days** window (W/G, win%, and average
   guesses) alongside the existing all-time and last-14-puzzles stats, so
   short-term form is visible.
+- `docs/elo.md` — scoring reference with formulas (base, day-relative
+  speed, damping), an equilibrium table by win rate, and a worked example.
 
 ## [1.0.0] - 2026-05-13
 
