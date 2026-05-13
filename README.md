@@ -7,7 +7,8 @@ Discord bot that parses the daily summary message posted by the official **Wordl
 - **Hosting**: WSL2 + Docker on a Windows laptop, single Discord guild
 - **DB**: SQLite, file mounted from the host
 
-See `docs/plan.md` (or the original `~/.claude/plans/unified-baking-valiant.md`) for the full design.
+See [`docs/elo.md`](docs/elo.md) for the scoring formulas (base + day-relative
+speed + damping + equilibrium analysis).
 
 ---
 
