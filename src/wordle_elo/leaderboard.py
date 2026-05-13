@@ -158,6 +158,27 @@ def format_version_embed(entries: list[VersionEntry]) -> discord.Embed:
     )
 
 
+def format_help_embed(
+    commands_info: list[tuple[str, str, list[tuple[str, str]]]],
+) -> discord.Embed:
+    if not commands_info:
+        return discord.Embed(
+            title="Commands",
+            description="No commands registered.",
+            color=discord.Color.blurple(),
+        )
+    lines: list[str] = []
+    for name, desc, params in commands_info:
+        lines.append(f"`/{name}` — {desc}" if desc else f"`/{name}`")
+        for pname, pdesc in params:
+            lines.append(f"　• `{pname}` — {pdesc}" if pdesc else f"　• `{pname}`")
+    return discord.Embed(
+        title="Commands",
+        description="\n".join(lines),
+        color=discord.Color.blurple(),
+    )
+
+
 def format_history_embed(user_id: int, rows: list) -> discord.Embed:
     lines = []
     for r in rows:

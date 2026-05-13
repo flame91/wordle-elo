@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `/version` slash command — surfaces recent release entries from this file,
   with the head entry highlighted. Accepts `count:N` (1..20, default 5).
+- `/help` slash command — lists every registered slash command with its
+  description and parameters. The list is built from the live command tree,
+  so adding, removing, or renaming a command updates `/help` automatically.
 
 ### Changed
 - Tier system simplified to Diamond / Gold / Silver / Bronze / Iron.

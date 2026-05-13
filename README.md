@@ -109,6 +109,7 @@ Wait for the next 12:00 AM Wordle APP message to arrive — the bot should reply
 - `/leaderboard` — full standings
 - `/history @someone 14` — recent results
 - `/version`     — recent release entries from `CHANGELOG.md` (head highlighted)
+- `/help`        — list of all available slash commands
 
 ## Operations
 

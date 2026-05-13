@@ -34,6 +34,7 @@ class WordleEloBot(commands.Bot):
         await self.load_extension("wordle_elo.commands.leaderboard")
         await self.load_extension("wordle_elo.commands.history")
         await self.load_extension("wordle_elo.commands.version")
+        await self.load_extension("wordle_elo.commands.help")
 
         # Sync slash commands to a single guild for instant availability
         guild_obj = discord.Object(id=self.cfg.discord_guild_id)
