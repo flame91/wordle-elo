@@ -12,12 +12,11 @@ CROWN = "\U0001f451"
 PAD = "　"  # full-width space, aligns with crown
 
 TIER_EMOJI = {
-    "Challenger": "\U0001f3c6",   # 🏆
     "Diamond": "\U0001f48e",       # 💎
-    "Platinum": "\U0001f947",      # 🥇
-    "Gold": "\U0001f947",          # 🥇
-    "Silver": "\U0001f948",        # 🥈
-    "Bronze": "\U0001f949",        # 🥉
+    "Gold":    "\U0001f947",       # 🥇
+    "Silver":  "\U0001f948",       # 🥈
+    "Bronze":  "\U0001f949",       # 🥉
+    "Iron":    "♿️",     # ♿️
 }
 
 
