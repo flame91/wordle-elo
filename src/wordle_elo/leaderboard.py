@@ -84,8 +84,10 @@ def format_full_leaderboard(rows: list[dict]) -> discord.Embed:
         tier = p.get("tier", "")
         emoji = _tier_emoji(tier)
         avg = _avg_str(p.get("avg_winning_guesses"))
+        name = p.get("display_name")
+        name_str = f"**{name}**" if name else f"<@{p['user_id']}>"
         lines.append(
-            f"`#{i:>2}` <@{p['user_id']}>  {emoji} **{tier}**  "
+            f"`#{i:>2}` {name_str}  {emoji} **{tier}**  "
             f"`{p['elo']:>4}`  "
             f"{p['games_won']}/{p['games_played']} ({win_pct:.0f}%)  "
             f"\U0001f525**{p['best_streak']}**  "
