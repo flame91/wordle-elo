@@ -14,9 +14,10 @@ from sqlalchemy import select
 
 from .elo import INITIAL as ELO_INITIAL
 from .elo import compute_daily
-from .leaderboard import format_daily_embed
+from .leaderboard import format_daily_embed, format_full_leaderboard
 from .models import EloHistory, Nickname, Player, ProcessedPuzzle, Submission
 from .parser import parse_message
+from .standings import build_leaderboard_rows
 from .tier import assign_tier
 
 log = logging.getLogger(__name__)
@@ -40,8 +41,12 @@ async def process_message(bot, message, *, silent: bool = False):
 
     if not silent:
         try:
+            standings_rows = await build_leaderboard_rows(sm)
+            embeds = [format_daily_embed(parsed.puzzle_no, result["entries"])]
+            if standings_rows:
+                embeds.append(format_full_leaderboard(standings_rows))
             posted = await message.reply(
-                embed=format_daily_embed(parsed.puzzle_no, result["entries"]),
+                embeds=embeds,
                 mention_author=False,
             )
         except Exception:
