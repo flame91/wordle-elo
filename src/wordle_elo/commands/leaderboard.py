@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 import discord
 from discord import app_commands
@@ -13,6 +14,8 @@ from ..nicknames import refresh_from_channel_history
 from ..tier import assign_tier
 
 log = logging.getLogger(__name__)
+
+ACTIVE_DAYS = 7
 
 # Bounded scan: enough to find anyone who has authored in #wordle in the last
 # few months, but capped so a /leaderboard call with missing nicknames doesn't
@@ -45,7 +48,9 @@ class LeaderboardCog(commands.Cog):
                 _, nicks, _ = await self._load(self.bot.sessionmaker)
 
         if not players:
-            await interaction.followup.send("No players tracked yet.")
+            await interaction.followup.send(
+                f"No players active in the last {ACTIVE_DAYS} days."
+            )
             return
 
         all_ratings = [p.elo for p in players]
@@ -63,16 +68,29 @@ class LeaderboardCog(commands.Cog):
             }
             for p in players
         ]
+        embed = format_full_leaderboard(rows)
+        if embed.footer is not None and embed.footer.text:
+            embed.set_footer(
+                text=f"{embed.footer.text} · Active in last {ACTIVE_DAYS} days"
+            )
+        else:
+            embed.set_footer(text=f"Active in last {ACTIVE_DAYS} days")
         await interaction.followup.send(
-            embed=format_full_leaderboard(rows),
+            embed=embed,
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
     @staticmethod
     async def _load(sessionmaker):
+        cutoff = datetime.now(timezone.utc) - timedelta(days=ACTIVE_DAYS)
         async with sessionmaker() as session:
             players = (
-                await session.execute(select(Player).order_by(desc(Player.elo)))
+                await session.execute(
+                    select(Player)
+                    .where(Player.last_played_at.is_not(None))
+                    .where(Player.last_played_at >= cutoff)
+                    .order_by(desc(Player.elo))
+                )
             ).scalars().all()
             nick_rows = (await session.execute(select(Nickname))).scalars().all()
             nicks = {n.user_id: n.display_name for n in nick_rows}
