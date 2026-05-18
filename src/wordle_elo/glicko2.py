@@ -30,7 +30,7 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-GLICKO_INITIAL_RATING = 1500.0
+GLICKO_INITIAL_RATING = 1000.0
 GLICKO_INITIAL_RD = 350.0
 GLICKO_INITIAL_SIGMA = 0.06
 GLICKO_TAU = 0.5
