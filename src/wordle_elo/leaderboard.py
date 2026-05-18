@@ -75,9 +75,11 @@ def format_daily_embed(puzzle_no: int, entries: list[dict]) -> discord.Embed:
 
 # Column order: 순위 / 닉네임 / 계급 / ELO / 승/게임(승률) / 최대연승 / 성공시 평균 시도
 
-def format_full_leaderboard(rows: list[dict]) -> discord.Embed:
+def format_full_leaderboard(
+    rows: list[dict], *, title: str = "Wordle ELO Leaderboard", rating_label: str = "ELO"
+) -> discord.Embed:
     if not rows:
-        return discord.Embed(title="Wordle ELO Leaderboard", description="No players yet.")
+        return discord.Embed(title=title, description="No players yet.")
     lines = []
     for i, p in enumerate(rows, start=1):
         win_pct = (p["games_won"] / p["games_played"] * 100) if p["games_played"] else 0
@@ -86,20 +88,25 @@ def format_full_leaderboard(rows: list[dict]) -> discord.Embed:
         avg = _avg_str(p.get("avg_winning_guesses"))
         name = p.get("display_name")
         name_str = f"**{name}**" if name else f"<@{p['user_id']}>"
+        rating_val = p.get("rating", p.get("elo", 0))
+        rating_cell = f"`{rating_val:>4}`"
+        rd = p.get("rating_rd")
+        if rd is not None:
+            rating_cell += f" ±{rd}"
         lines.append(
             f"`#{i:>2}` {name_str}  {emoji} **{tier}**  "
-            f"`{p['elo']:>4}`  "
+            f"{rating_cell}  "
             f"{p['games_won']}/{p['games_played']} ({win_pct:.0f}%)  "
             f"\U0001f525**{p['best_streak']}**  "
             f"⌀{avg}"
         )
     embed = discord.Embed(
-        title="Wordle ELO Leaderboard",
+        title=title,
         description="\n".join(lines),
         color=discord.Color.blue(),
     )
     embed.set_footer(
-        text="Rank · Name · Tier · ELO · W/G (Win%) · 🔥Best streak · ⌀Avg guesses (wins)"
+        text=f"Rank · Name · Tier · {rating_label} · W/G (Win%) · 🔥Best streak · ⌀Avg guesses (wins)"
     )
     return embed
 
