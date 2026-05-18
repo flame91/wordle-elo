@@ -75,9 +75,12 @@ class WordleEloBot(commands.Bot):
             return
         if after.author.id != self.cfg.wordle_app_id:
             return
-        # Re-parse, but don't repost leaderboard (already posted on first arrival)
+        # The Wordle Activity edits its daily summary to add late finishers.
+        # force_reprocess=True wipes the puzzle, re-inserts from the edited
+        # message, rebuilds ELO from full Submission history, and edits the
+        # bot's original reply so the visible leaderboard stays in sync.
         try:
-            await process_message(self, after, silent=True)
+            await process_message(self, after, force_reprocess=True)
         except Exception:
             log.exception("Failed to reprocess edited message %s", after.id)
 

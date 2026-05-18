@@ -10,21 +10,31 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from .elo import INITIAL as ELO_INITIAL
 from .elo import compute_daily
 from .leaderboard import format_daily_embed
 from .models import EloHistory, Nickname, Player, ProcessedPuzzle, Submission
 from .parser import parse_message
+from .replay import rebuild_from_submissions
 from .tier import assign_tier
 
 log = logging.getLogger(__name__)
 ELO_FLOOR = 100
 
 
-async def process_message(bot, message, *, silent: bool = False):
-    """Top-level entry. Returns result dict or None if skipped."""
+async def process_message(
+    bot, message, *, silent: bool = False, force_reprocess: bool = False
+):
+    """Top-level entry. Returns result dict or None if skipped.
+
+    When `force_reprocess` is True and a ProcessedPuzzle row already exists,
+    the puzzle's submissions/elo_history/processed_puzzles rows are wiped,
+    re-inserted from the (possibly edited) message, and the full ELO state is
+    rebuilt from the Submission table. The bot's original reply (if any) is
+    edited in place rather than posting a new one.
+    """
     parsed = parse_message(message)
     if parsed is None:
         log.debug("Skip unparseable message %s", message.id)
@@ -32,27 +42,159 @@ async def process_message(bot, message, *, silent: bool = False):
 
     sm = bot.sessionmaker
     async with sm() as session:
-        if await session.get(ProcessedPuzzle, parsed.puzzle_no) is not None:
-            log.info("Puzzle %s already processed, skipping", parsed.puzzle_no)
-            return None
-        result = await _apply(session, bot, parsed, message)
+        existing = await session.get(ProcessedPuzzle, parsed.puzzle_no)
+
+    if existing is not None and not force_reprocess:
+        log.info("Puzzle %s already processed, skipping", parsed.puzzle_no)
+        return None
+
+    old_reply_id: int | None = None
+    if existing is not None and force_reprocess:
+        log.info("Reprocessing puzzle %s (edit detected)", parsed.puzzle_no)
+        old_reply_id = existing.leaderboard_message_id
+        result = await _reprocess(sm, bot, parsed, message)
+    else:
+        async with sm() as session:
+            result = await _apply(session, bot, parsed, message)
+            await session.commit()
+
+    if silent:
+        return result
+
+    embed = format_daily_embed(parsed.puzzle_no, result["entries"])
+    posted = await _post_or_edit_reply(message, embed, old_reply_id)
+    if posted is not None:
+        async with sm() as session:
+            pp = await session.get(ProcessedPuzzle, parsed.puzzle_no)
+            if pp is not None and pp.leaderboard_message_id != posted.id:
+                pp.leaderboard_message_id = posted.id
+                await session.commit()
+    return result
+
+
+async def _post_or_edit_reply(message, embed, old_reply_id: int | None):
+    """If old_reply_id is set, try to edit that message in place; fall back to
+    posting a new reply if the old message is missing or editing fails."""
+    if old_reply_id is not None:
+        try:
+            old = await message.channel.fetch_message(old_reply_id)
+            await old.edit(embed=embed)
+            return old
+        except Exception:
+            log.warning(
+                "Failed to edit prior leaderboard reply %s; posting new",
+                old_reply_id,
+            )
+    try:
+        return await message.reply(embed=embed, mention_author=False)
+    except Exception:
+        log.exception("Failed to post leaderboard reply")
+        return None
+
+
+async def _reprocess(sm, bot, parsed, source_msg):
+    """Wipe this puzzle's data, re-insert from the parsed (edited) message,
+    and rebuild ELO state from the full Submission table.
+    """
+    now = datetime.now(timezone.utc)
+    when = source_msg.created_at if source_msg is not None else now
+
+    async with sm() as session:
+        await session.execute(
+            delete(Submission).where(Submission.puzzle_no == parsed.puzzle_no)
+        )
+        await session.execute(
+            delete(EloHistory).where(EloHistory.puzzle_no == parsed.puzzle_no)
+        )
+        await session.execute(
+            delete(ProcessedPuzzle).where(
+                ProcessedPuzzle.puzzle_no == parsed.puzzle_no
+            )
+        )
+
+        for s in parsed.submissions:
+            if await session.get(Player, s.user_id) is None:
+                session.add(
+                    Player(user_id=s.user_id, elo=ELO_INITIAL, first_seen_at=when)
+                )
+            await _upsert_nickname(session, bot, s.user_id, when)
+        await session.flush()
+
+        for s in parsed.submissions:
+            session.add(
+                Submission(
+                    puzzle_no=parsed.puzzle_no,
+                    user_id=s.user_id,
+                    guesses=s.guesses,
+                    hard_mode=int(s.hard_mode),
+                    source_message_id=source_msg.id if source_msg is not None else None,
+                    submitted_at=when,
+                )
+            )
         await session.commit()
 
-    if not silent:
-        try:
-            posted = await message.reply(
-                embed=format_daily_embed(parsed.puzzle_no, result["entries"]),
-                mention_author=False,
+    await rebuild_from_submissions(sm)
+
+    async with sm() as session:
+        session.add(
+            ProcessedPuzzle(
+                puzzle_no=parsed.puzzle_no,
+                source_message_id=source_msg.id if source_msg is not None else 0,
+                processed_at=now,
             )
-        except Exception:
-            log.exception("Failed to post leaderboard for puzzle %s", parsed.puzzle_no)
-        else:
-            async with sm() as session:
-                pp = await session.get(ProcessedPuzzle, parsed.puzzle_no)
-                if pp is not None:
-                    pp.leaderboard_message_id = posted.id
-                    await session.commit()
-    return result
+        )
+        await session.commit()
+
+    return await _build_entries_for_reply(sm, parsed.puzzle_no)
+
+
+async def _build_entries_for_reply(sm, puzzle_no: int) -> dict:
+    """Read EloHistory+Submission+Player and assemble the entry list the daily
+    embed renderer expects."""
+    async with sm() as session:
+        history = (
+            await session.execute(
+                select(EloHistory).where(EloHistory.puzzle_no == puzzle_no)
+            )
+        ).scalars().all()
+        subs = (
+            await session.execute(
+                select(Submission).where(Submission.puzzle_no == puzzle_no)
+            )
+        ).scalars().all()
+        submitter_ids = [h.user_id for h in history]
+        players = {
+            p.user_id: p
+            for p in (
+                await session.execute(
+                    select(Player).where(Player.user_id.in_(submitter_ids))
+                )
+            ).scalars().all()
+        }
+        all_ratings = [r for (r,) in (await session.execute(select(Player.elo)))]
+
+    subs_by_uid = {s.user_id: s for s in subs}
+    entries = []
+    for h in history:
+        sub = subs_by_uid.get(h.user_id)
+        if sub is None:
+            continue
+        entries.append(
+            {
+                "user_id": h.user_id,
+                "guesses": sub.guesses,
+                "hard_mode": bool(sub.hard_mode),
+                "elo_before": h.elo_before,
+                "elo_after": h.elo_after,
+                "delta_total": h.delta_total,
+            }
+        )
+    entries.sort(key=lambda e: (e["guesses"], -e["delta_total"]))
+    for e in entries:
+        p = players.get(e["user_id"])
+        if p is not None:
+            e["tier"] = assign_tier(e["elo_after"], all_ratings, p.games_played)
+    return {"puzzle_no": puzzle_no, "entries": entries}
 
 
 async def _apply(session, bot, parsed, source_msg):
