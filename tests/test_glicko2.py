@@ -63,12 +63,13 @@ def test_losing_to_equal_opponent_lowers_rating():
 def test_high_rd_player_moves_more_per_game_than_low_rd_player():
     """A newer player (high RD) should swing more on a single result than an
     established player (low RD) — this is the whole point of dynamic K."""
-    opp = GlickoRating(rating=1500, rd=50)
-    new = GlickoRating(rating=1500, rd=350)
-    settled = GlickoRating(rating=1500, rd=50)
+    base = GLICKO_INITIAL_RATING
+    opp = GlickoRating(rating=base, rd=50)
+    new = GlickoRating(rating=base, rd=350)
+    settled = GlickoRating(rating=base, rd=50)
     new_after = update_one(new, [(opp, 1.0)])
     settled_after = update_one(settled, [(opp, 1.0)])
-    assert (new_after.rating - 1500) > (settled_after.rating - 1500)
+    assert (new_after.rating - base) > (settled_after.rating - base)
 
 
 def test_rd_shrinks_with_play():
@@ -103,14 +104,15 @@ def test_apply_puzzle_preserves_unsubmitted_players():
 
 
 def test_repeated_dominance_lifts_rating_and_shrinks_rd():
-    """Beating a 1500 opponent over and over should monotonically push us
-    above 1500. RD also shrinks vs the initial 350, though slower once we've
-    pulled far ahead (those wins carry less new information)."""
+    """Beating an equal-rated opponent over and over should monotonically
+    push us above the starting rating. RD also shrinks vs the initial 350,
+    though slower once we've pulled far ahead (those wins carry less new
+    information)."""
     me = GlickoRating()
     opp = GlickoRating()
     for _ in range(20):
         me = update_one(me, [(opp, 1.0)])
-    assert me.rating > 1600
+    assert me.rating > GLICKO_INITIAL_RATING + 100
     assert me.rd < GLICKO_INITIAL_RD  # got more certain than initial
 
     # RD never breaks past floor across many rounds
