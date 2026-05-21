@@ -17,6 +17,7 @@ from .elo import compute_daily
 from .leaderboard import format_daily_embed
 from .models import EloHistory, Nickname, Player, ProcessedPuzzle, Submission
 from .parser import parse_message
+from .standings import build_elo_rows, render_leaderboard_embed
 from .tier import assign_tier
 
 log = logging.getLogger(__name__)
@@ -39,11 +40,18 @@ async def process_message(bot, message, *, silent: bool = False):
         await session.commit()
 
     if not silent:
+        # Daily summary (who played + delta) first, then the full standings —
+        # identical to /leaderboard (active-7-day ELO board), so the daily post
+        # shows everyone's current rank, not just today's submitters.
+        embeds = [format_daily_embed(parsed.puzzle_no, result["entries"])]
         try:
-            posted = await message.reply(
-                embed=format_daily_embed(parsed.puzzle_no, result["entries"]),
-                mention_author=False,
-            )
+            rows = await build_elo_rows(sm)
+            if rows:
+                embeds.append(render_leaderboard_embed(rows, "elo"))
+        except Exception:
+            log.exception("Failed to build standings for puzzle %s", parsed.puzzle_no)
+        try:
+            posted = await message.reply(embeds=embeds, mention_author=False)
         except Exception:
             log.exception("Failed to post leaderboard for puzzle %s", parsed.puzzle_no)
         else:

@@ -6,12 +6,12 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ..leaderboard import format_full_leaderboard
 from ..nicknames import refresh_from_channel_history
 from ..standings import (
     ACTIVE_DAYS,
     build_elo_rows,
     build_glicko2_rows,
+    render_leaderboard_embed,
 )
 
 log = logging.getLogger(__name__)
@@ -56,16 +56,7 @@ class LeaderboardCog(commands.Cog):
         if any(r.get("display_name") is None for r in rows):
             rows = await self._build_rows(algo)
 
-        if algo == "glicko2":
-            title = "Wordle Glicko-2 Leaderboard"
-            rating_label = "Glicko (±RD)"
-        else:
-            title = "Wordle ELO Leaderboard"
-            rating_label = "ELO"
-
-        embed = format_full_leaderboard(rows, title=title, rating_label=rating_label)
-        footer = embed.footer.text if embed.footer is not None else ""
-        embed.set_footer(text=f"{footer} · Active in last {ACTIVE_DAYS} days")
+        embed = render_leaderboard_embed(rows, algo)
         await interaction.followup.send(
             embed=embed,
             allowed_mentions=discord.AllowedMentions.none(),
