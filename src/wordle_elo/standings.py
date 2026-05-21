@@ -13,13 +13,32 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import discord
 from sqlalchemy import desc, func, select
 
 from .glicko2 import GlickoRating, apply_puzzle
+from .leaderboard import format_full_leaderboard
 from .models import Nickname, Player, Submission
 from .tier import assign_tier
 
 ACTIVE_DAYS = 7
+
+
+def _embed_meta(algo: str) -> tuple[str, str]:
+    if algo == "glicko2":
+        return "Wordle Glicko-2 Leaderboard", "Glicko (±RD)"
+    return "Wordle ELO Leaderboard", "ELO"
+
+
+def render_leaderboard_embed(rows: list[dict], algo: str = "elo") -> discord.Embed:
+    """Build the final /leaderboard embed (title, rating label, active-days
+    footer). Shared by the slash command and the daily auto-post so the two
+    views are byte-for-byte identical."""
+    title, rating_label = _embed_meta(algo)
+    embed = format_full_leaderboard(rows, title=title, rating_label=rating_label)
+    footer = embed.footer.text if embed.footer is not None else ""
+    embed.set_footer(text=f"{footer} · Active in last {ACTIVE_DAYS} days")
+    return embed
 
 
 async def _common_lookups(sessionmaker):

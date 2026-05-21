@@ -25,7 +25,7 @@ async def catch_up(bot) -> None:
             log.exception("Catch-up: failed to fetch channel")
             return
 
-    processed = 0
+    pending: list[tuple[int, object]] = []
     async for msg in channel.history(limit=SCAN_LIMIT):
         if msg.author.id != bot.cfg.wordle_app_id:
             continue
@@ -36,10 +36,27 @@ async def catch_up(bot) -> None:
             existing = await session.get(ProcessedPuzzle, parsed.puzzle_no)
         if existing is not None:
             continue
+        pending.append((parsed.puzzle_no, msg))
+
+    if not pending:
+        log.info("Catch-up: nothing to process")
+        return
+
+    # When several puzzles are missing at once (bot was offline for days, or
+    # the DB was reset), process them oldest→newest but only POST a leaderboard
+    # for the most recent one. Backfilling 5 days shouldn't spam 5 leaderboards.
+    pending.sort(key=lambda x: x[0])
+    newest_puzzle = pending[-1][0]
+    processed = 0
+    for puzzle_no, msg in pending:
         try:
-            await process_message(bot, msg)
+            await process_message(bot, msg, silent=(puzzle_no != newest_puzzle))
             processed += 1
         except Exception:
             log.exception("Catch-up: failed on message %s", msg.id)
 
-    log.info("Catch-up: done (processed %d new puzzles)", processed)
+    log.info(
+        "Catch-up: done (processed %d puzzles, posted leaderboard for #%d)",
+        processed,
+        newest_puzzle,
+    )
