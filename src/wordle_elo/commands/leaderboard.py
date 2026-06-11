@@ -12,6 +12,7 @@ from ..seasons import (
     current_season_label,
     list_archived_seasons,
     load_season_archive,
+    normalize_season_label,
 )
 from ..standings import (
     ACTIVE_DAYS,
@@ -33,6 +34,17 @@ class LeaderboardCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def _season_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        seasons = await list_archived_seasons(self.bot.sessionmaker)
+        cur = current.strip().upper()
+        return [
+            app_commands.Choice(name=s, value=s)
+            for s in seasons
+            if cur in s.upper()
+        ][:25]
+
     @app_commands.command(name="leaderboard", description="Show the full ranking leaderboard")
     @app_commands.describe(
         algorithm="Which rating algorithm to display (default: ELO)",
@@ -44,6 +56,7 @@ class LeaderboardCog(commands.Cog):
             app_commands.Choice(name="Glicko-2 — LoL-style pairwise", value="glicko2"),
         ]
     )
+    @app_commands.autocomplete(season=_season_autocomplete)
     async def leaderboard(
         self,
         interaction: discord.Interaction,
@@ -78,8 +91,10 @@ class LeaderboardCog(commands.Cog):
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
-    async def _send_season_archive(self, interaction: discord.Interaction, label: str) -> None:
-        label = label.strip().upper()
+    async def _send_season_archive(self, interaction: discord.Interaction, raw: str) -> None:
+        current = await current_season_label(self.bot.sessionmaker)
+        default_year = int(current.split("-Q")[0]) if current else 2026
+        label = normalize_season_label(raw, default_year) or raw.strip().upper()
         ranked = await load_season_archive(self.bot.sessionmaker, label)
         if not ranked:
             available = await list_archived_seasons(self.bot.sessionmaker)

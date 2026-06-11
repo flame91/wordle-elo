@@ -15,6 +15,7 @@ season's ratings but are never archived or reset (see `season` module docstring)
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -186,6 +187,20 @@ async def list_archived_seasons(sessionmaker) -> list[str]:
             )
         ]
     return sorted(labels, reverse=True)
+
+
+def normalize_season_label(raw: str, default_year: int) -> str | None:
+    """Accept loose user input for a season and return a canonical `YYYY-Qn`,
+    or None if it can't be parsed. Handles `2026-Q1`, `2026q1`, `2026 1`,
+    `Q1`, and bare `1` (which assumes `default_year`)."""
+    s = raw.strip().upper().replace(" ", "").replace("-", "")
+    m = re.fullmatch(r"(\d{4})Q?([1-4])", s)
+    if m:
+        return f"{m.group(1)}-Q{m.group(2)}"
+    m = re.fullmatch(r"Q?([1-4])", s)
+    if m:
+        return f"{default_year}-Q{m.group(1)}"
+    return None
 
 
 async def load_season_archive(sessionmaker, label: str) -> list[dict]:

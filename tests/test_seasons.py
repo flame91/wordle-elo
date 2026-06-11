@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from wordle_elo import season
 from wordle_elo.models import Base, Player, SeasonResult, SeasonState, Submission
-from wordle_elo.seasons import maybe_rollover
+from wordle_elo.seasons import maybe_rollover, normalize_season_label
 
 WHEN = datetime(2026, 4, 1, tzinfo=timezone.utc)
 
@@ -44,6 +44,17 @@ async def _seed(sessionmaker):
             Submission(puzzle_no=Q1_FIRST, user_id=2, guesses=7, hard_mode=0, submitted_at=WHEN),
         ])
         await session.commit()
+
+
+def test_normalize_season_label_accepts_loose_input():
+    assert normalize_season_label("1", 2026) == "2026-Q1"
+    assert normalize_season_label("q1", 2026) == "2026-Q1"
+    assert normalize_season_label("Q3", 2026) == "2026-Q3"
+    assert normalize_season_label("2025-Q4", 2026) == "2025-Q4"
+    assert normalize_season_label("2025q4", 2026) == "2025-Q4"
+    assert normalize_season_label("2025 4", 2026) == "2025-Q4"
+    assert normalize_season_label("garbage", 2026) is None
+    assert normalize_season_label("5", 2026) is None  # only quarters 1-4
 
 
 async def test_first_puzzle_initializes_state_without_reset(sessionmaker):
