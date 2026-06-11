@@ -38,6 +38,13 @@ def test_label_navigation():
     assert season.season_end_date("2026-Q4") == date(2026, 12, 31)
 
 
+def test_season_period_and_label_with_period():
+    assert season.season_period("2026-Q1") == "Jan–Mar"
+    assert season.season_period("2026-Q2") == "Apr–Jun"
+    assert season.season_period("2025-Q4") == "Oct–Dec"
+    assert season.label_with_period("2026-Q2") == "2026-Q2 (Apr–Jun)"
+
+
 def test_soft_reset_partial_carry_preserves_order_and_pulls_to_anchor():
     assert season.soft_reset(1500, carry=0.5, anchor=1000) == 1250
     assert season.soft_reset(800, carry=0.5, anchor=1000) == 900
