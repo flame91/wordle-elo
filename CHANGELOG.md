@@ -11,13 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Quarterly seasons.** Play is now divided into calendar quarters
   (Q1 Jan–Mar, Q2 Apr–Jun, Q3 Jul–Sep, Q4 Oct–Dec). At each boundary the
   finished season's final standings are archived (`season_results`) and a
-  champion is announced to the channel, then every rating is **soft-reset** —
-  `new = INITIAL + (elo - INITIAL) * SEASON_CARRY` (default 0.5) — so the next
-  season starts competitive while preserving skill order. Boundary detection is
-  keyed off the puzzle number, so catch-up backfill across a boundary resets at
-  the right puzzle. New knobs: `SEASON_EPOCH` (first tracked boundary, default
-  2026-01-01) and `SEASON_CARRY`. `/leaderboard` now tags the current season and
-  accepts `season:<label>` (e.g. `2026-Q1`) to view an archived season.
+  champion is announced to the channel, then every rating is reset for the new
+  season via `new = INITIAL + (elo - INITIAL) * SEASON_CARRY`. The default
+  `SEASON_CARRY=0` is a **hard reset** — everyone restarts at `INITIAL`; set it
+  to `0.5` for a soft reset that keeps half of each player's lead. Boundary
+  detection is keyed off the puzzle number, so catch-up backfill across a
+  boundary resets at the right puzzle. New knobs: `SEASON_EPOCH` (first tracked
+  boundary, default 2026-01-01) and `SEASON_CARRY`. `/leaderboard` tags the
+  current season, scopes its **games / wins / streak / avg columns to the
+  current season**, and accepts `season:<label>` (e.g. `2026-Q1`) to view an
+  archived season.
 - `recompute_elo` is season-aware: replaying the history also rebuilds the
   season archive and applies the soft resets, doubling as the one-time
   migration that seasons an existing all-time DB.

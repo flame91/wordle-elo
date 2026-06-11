@@ -38,9 +38,19 @@ def test_label_navigation():
     assert season.season_end_date("2026-Q4") == date(2026, 12, 31)
 
 
-def test_soft_reset_preserves_order_and_pulls_to_anchor():
+def test_soft_reset_partial_carry_preserves_order_and_pulls_to_anchor():
     assert season.soft_reset(1500, carry=0.5, anchor=1000) == 1250
     assert season.soft_reset(800, carry=0.5, anchor=1000) == 900
     assert season.soft_reset(1000, carry=0.5, anchor=1000) == 1000
-    # order preserved
-    assert season.soft_reset(1500) > season.soft_reset(1200) > season.soft_reset(1000)
+    # a positive carry preserves skill order
+    assert (
+        season.soft_reset(1500, carry=0.5)
+        > season.soft_reset(1200, carry=0.5)
+        > season.soft_reset(1000, carry=0.5)
+    )
+
+
+def test_soft_reset_zero_carry_is_hard_reset_to_anchor():
+    # carry=0 collapses everyone to the anchor — the default hard reset.
+    assert season.soft_reset(1500, carry=0.0, anchor=1000) == 1000
+    assert season.soft_reset(800, carry=0.0, anchor=1000) == 1000

@@ -32,7 +32,7 @@ def _finalizes(prev_label: str) -> bool:
     return season.season_start_date(prev_label) >= season.SEASON_EPOCH
 
 
-async def _season_player_stats(session, label: str) -> dict[int, dict]:
+async def season_player_stats(session, label: str) -> dict[int, dict]:
     """Per-player stats scoped to one season, derived from the immutable
     Submission log: games, wins, mean winning guesses, and best win streak."""
     lo = season.first_puzzle_no(label)
@@ -67,7 +67,7 @@ async def finalize_season(session, label: str, *, when: datetime) -> list[dict]:
     """Write SeasonResult rows for `label` from current standings and return the
     ranked rows (rank 1 first). Ranking uses live `Player.elo`, which still holds
     the season-final running rating at the moment of rollover (before reset)."""
-    stats = await _season_player_stats(session, label)
+    stats = await season_player_stats(session, label)
     if not stats:
         return []
 

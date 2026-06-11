@@ -19,6 +19,7 @@ from sqlalchemy import desc, func, select
 from .glicko2 import GlickoRating, apply_puzzle
 from .leaderboard import format_full_leaderboard
 from .models import Nickname, Player, Submission
+from .seasons import current_season_label, season_player_stats
 from .tier import assign_tier
 
 ACTIVE_DAYS = 7
@@ -61,8 +62,16 @@ async def resolve_names(sessionmaker, user_ids: list[int]) -> dict[int, str]:
 
 
 async def _common_lookups(sessionmaker):
-    """Filtered player rows + nickname map + per-user winning-avg dict."""
+    """Filtered player rows + nickname map + per-user stats.
+
+    Stats (games / wins / best & current streak / avg winning guesses) are
+    scoped to the *current season* once seasons are initialised, so the board
+    reflects this season's play rather than all-time totals. Before any season
+    state exists (fresh DB / tests) it falls back to all-time figures taken
+    from the Player counters + the full Submission log.
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=ACTIVE_DAYS)
+    label = await current_season_label(sessionmaker)
     async with sessionmaker() as session:
         players = (
             await session.execute(
@@ -74,33 +83,58 @@ async def _common_lookups(sessionmaker):
         ).scalars().all()
         nick_rows = (await session.execute(select(Nickname))).scalars().all()
         nicks = {n.user_id: n.display_name for n in nick_rows}
-        avg_rows = await session.execute(
-            select(Submission.user_id, func.avg(Submission.guesses))
-            .where(Submission.guesses <= 6)
-            .group_by(Submission.user_id)
-        )
-        avg_by_user = {uid: float(avg) for uid, avg in avg_rows}
-    return players, nicks, avg_by_user
+
+        if label is not None:
+            stats = await season_player_stats(session, label)
+        else:
+            stats = None
+            avg_rows = await session.execute(
+                select(Submission.user_id, func.avg(Submission.guesses))
+                .where(Submission.guesses <= 6)
+                .group_by(Submission.user_id)
+            )
+            avg_by_user = {uid: float(avg) for uid, avg in avg_rows}
+
+    if stats is None:
+        # All-time fallback: Player counters + all-time average.
+        stats = {
+            p.user_id: {
+                "games": p.games_played,
+                "won": p.games_won,
+                "best_streak": p.best_streak,
+                "streak": p.current_streak,
+                "avg": avg_by_user.get(p.user_id),
+            }
+            for p in players
+        }
+    return players, nicks, stats
+
+
+def _stat(stats: dict, uid: int) -> dict:
+    return stats.get(uid, {"games": 0, "won": 0, "best_streak": 0, "streak": 0, "avg": None})
 
 
 async def build_elo_rows(sessionmaker) -> list[dict]:
-    """Active players ordered by stored ELO."""
-    players, nicks, avg_by_user = await _common_lookups(sessionmaker)
+    """Active players ordered by stored ELO, with current-season stats."""
+    players, nicks, stats = await _common_lookups(sessionmaker)
     all_ratings = [p.elo for p in players]
-    return [
-        {
-            "user_id": p.user_id,
-            "display_name": nicks.get(p.user_id),
-            "rating": p.elo,
-            "tier": assign_tier(p.elo, all_ratings, p.games_played),
-            "games_played": p.games_played,
-            "games_won": p.games_won,
-            "best_streak": p.best_streak,
-            "current_streak": p.current_streak,
-            "avg_winning_guesses": avg_by_user.get(p.user_id),
-        }
-        for p in players
-    ]
+    rows = []
+    for p in players:
+        st = _stat(stats, p.user_id)
+        rows.append(
+            {
+                "user_id": p.user_id,
+                "display_name": nicks.get(p.user_id),
+                "rating": p.elo,
+                "tier": assign_tier(p.elo, all_ratings, st["games"]),
+                "games_played": st["games"],
+                "games_won": st["won"],
+                "best_streak": st["best_streak"],
+                "current_streak": st["streak"],
+                "avg_winning_guesses": st["avg"],
+            }
+        )
+    return rows
 
 
 async def build_glicko2_rows(sessionmaker) -> list[dict]:
@@ -129,7 +163,7 @@ async def build_glicko2_rows(sessionmaker) -> list[dict]:
         new = apply_puzzle(ratings, submissions_tuple)
         ratings.update(new)
 
-    players, nicks, avg_by_user = await _common_lookups(sessionmaker)
+    players, nicks, stats = await _common_lookups(sessionmaker)
     active_ids = {p.user_id for p in players}
     active_ratings = {uid: r for uid, r in ratings.items() if uid in active_ids}
     # Stable ordering: rating desc
@@ -144,18 +178,19 @@ async def build_glicko2_rows(sessionmaker) -> list[dict]:
             continue
         r = active_ratings[uid]
         rating_int = int(round(r.rating))
+        st = _stat(stats, uid)
         rows.append(
             {
                 "user_id": uid,
                 "display_name": nicks.get(uid),
                 "rating": rating_int,
                 "rating_rd": int(round(r.rd)),
-                "tier": assign_tier(rating_int, all_rating_values, p.games_played),
-                "games_played": p.games_played,
-                "games_won": p.games_won,
-                "best_streak": p.best_streak,
-                "current_streak": p.current_streak,
-                "avg_winning_guesses": avg_by_user.get(uid),
+                "tier": assign_tier(rating_int, all_rating_values, st["games"]),
+                "games_played": st["games"],
+                "games_won": st["won"],
+                "best_streak": st["best_streak"],
+                "current_streak": st["streak"],
+                "avg_winning_guesses": st["avg"],
             }
         )
     return rows
