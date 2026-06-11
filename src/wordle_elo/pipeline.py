@@ -17,6 +17,7 @@ from .elo import compute_daily
 from .leaderboard import format_daily_embed
 from .models import EloHistory, Nickname, Player, ProcessedPuzzle, Submission
 from .parser import parse_message
+from .seasons import current_season_label, maybe_rollover
 from .standings import build_elo_rows, render_leaderboard_embed
 from .tier import assign_tier
 
@@ -47,7 +48,8 @@ async def process_message(bot, message, *, silent: bool = False):
         try:
             rows = await build_elo_rows(sm)
             if rows:
-                embeds.append(render_leaderboard_embed(rows, "elo"))
+                label = await current_season_label(sm)
+                embeds.append(render_leaderboard_embed(rows, "elo", season_label=label))
         except Exception:
             log.exception("Failed to build standings for puzzle %s", parsed.puzzle_no)
         try:
@@ -66,6 +68,11 @@ async def process_message(bot, message, *, silent: bool = False):
 async def _apply(session, bot, parsed, source_msg):
     now = datetime.now(timezone.utc)
     when = source_msg.created_at if source_msg is not None else now
+
+    # Season boundary check runs before scoring so the first puzzle of a new
+    # quarter is rated against soft-reset standings (and only existing players
+    # are reset — this puzzle's newcomers start fresh below).
+    await maybe_rollover(session, bot, parsed.puzzle_no, when=when)
 
     submitter_ids = [s.user_id for s in parsed.submissions]
 

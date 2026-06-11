@@ -76,3 +76,37 @@ class ProcessedPuzzle(Base):
     source_message_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     processed_at: Mapped[datetime] = mapped_column(nullable=False)
     leaderboard_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+
+class SeasonResult(Base):
+    """Final standings of a finished quarterly season, one row per player.
+
+    Written by the rollover job (or the one-time seasonize script) right before
+    `Player.elo` is soft-reset for the next season, so the archive preserves
+    each season's outcome independently of the live, ever-changing player rows.
+    """
+
+    __tablename__ = "season_results"
+    __table_args__ = (UniqueConstraint("season", "user_id", name="uq_season_user"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    season: Mapped[str] = mapped_column(String, nullable=False, index=True)  # "2026-Q1"
+    user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    rank: Mapped[int] = mapped_column(Integer, nullable=False)
+    final_elo: Mapped[int] = mapped_column(Integer, nullable=False)
+    games_played: Mapped[int] = mapped_column(Integer, nullable=False)  # within the season
+    games_won: Mapped[int] = mapped_column(Integer, nullable=False)
+    best_streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    avg_winning_guesses: Mapped[float | None] = mapped_column(Float, nullable=True)
+    finalized_at: Mapped[datetime] = mapped_column(nullable=False)
+
+
+class SeasonState(Base):
+    """Single-row marker of the season currently in progress. The rollover job
+    compares today's season against this to detect a quarter boundary."""
+
+    __tablename__ = "season_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    current_season: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False)

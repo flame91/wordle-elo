@@ -6,12 +6,19 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from ..leaderboard import format_season_finale_embed
 from ..nicknames import refresh_from_channel_history
+from ..seasons import (
+    current_season_label,
+    list_archived_seasons,
+    load_season_archive,
+)
 from ..standings import (
     ACTIVE_DAYS,
     build_elo_rows,
     build_glicko2_rows,
     render_leaderboard_embed,
+    resolve_names,
 )
 
 log = logging.getLogger(__name__)
@@ -27,7 +34,10 @@ class LeaderboardCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="leaderboard", description="Show the full ranking leaderboard")
-    @app_commands.describe(algorithm="Which rating algorithm to display (default: ELO)")
+    @app_commands.describe(
+        algorithm="Which rating algorithm to display (default: ELO)",
+        season="Past season to view (e.g. 2026-Q1); omit for the current season",
+    )
     @app_commands.choices(
         algorithm=[
             app_commands.Choice(name="ELO — day-relative absolute (default)", value="elo"),
@@ -38,9 +48,14 @@ class LeaderboardCog(commands.Cog):
         self,
         interaction: discord.Interaction,
         algorithm: app_commands.Choice[str] | None = None,
+        season: str | None = None,
     ):
         await interaction.response.defer()
         algo = algorithm.value if algorithm else "elo"
+
+        if season:
+            await self._send_season_archive(interaction, season)
+            return
 
         rows = await self._build_rows(algo)
         if not rows:
@@ -56,10 +71,27 @@ class LeaderboardCog(commands.Cog):
         if any(r.get("display_name") is None for r in rows):
             rows = await self._build_rows(algo)
 
-        embed = render_leaderboard_embed(rows, algo)
+        label = await current_season_label(self.bot.sessionmaker)
+        embed = render_leaderboard_embed(rows, algo, season_label=label)
         await interaction.followup.send(
             embed=embed,
             allowed_mentions=discord.AllowedMentions.none(),
+        )
+
+    async def _send_season_archive(self, interaction: discord.Interaction, label: str) -> None:
+        label = label.strip().upper()
+        ranked = await load_season_archive(self.bot.sessionmaker, label)
+        if not ranked:
+            available = await list_archived_seasons(self.bot.sessionmaker)
+            hint = f" Available: {', '.join(available)}." if available else ""
+            await interaction.followup.send(f"No archived season `{label}`.{hint}")
+            return
+        names = await resolve_names(
+            self.bot.sessionmaker, [r["user_id"] for r in ranked]
+        )
+        embed = format_season_finale_embed(label, ranked, names, top=25)
+        await interaction.followup.send(
+            embed=embed, allowed_mentions=discord.AllowedMentions.none()
         )
 
     async def _build_rows(self, algo: str) -> list[dict]:
