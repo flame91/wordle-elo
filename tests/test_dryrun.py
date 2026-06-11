@@ -23,10 +23,12 @@ def test_single_puzzle_two_players_updates_elo():
 
     alice, bob = report.players[1], report.players[2]
     # Both are new players (games_played_before=0) so K=K_NEW=40, base=±10.
-    # alice solves 3/6: base +10, speed +1, streak 0 (streak=1 < 3) → +11
-    # bob   solves 5/6: base +10, speed -1, streak 0                → +9
-    assert alice.elo == 1011
-    assert bob.elo == 1009
+    # day_baseline = mean of solvers = (3+5)/2 = 4.0; speed = 2.5*(baseline-guesses).
+    # At elo 1000 (> DAMPING_ANCHOR 800) positive deltas are damped by 800/1000=0.8.
+    # alice 3/6: raw 10 + 2.5 = 12.5 → ×0.8 = 10 → 1010
+    # bob   5/6: raw 10 - 2.5 =  7.5 → ×0.8 =  6 → 1006
+    assert alice.elo == 1010
+    assert bob.elo == 1006
     # Both 3/6 and 5/6 are solves (only X=7 counts as a loss for streak/win purposes)
     assert alice.games_won == 1 and bob.games_won == 1
     assert alice.current_streak == 1 and bob.current_streak == 1

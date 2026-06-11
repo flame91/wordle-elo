@@ -75,7 +75,10 @@ def _daily_msg(puzzle_no: int) -> _FakeMessage:
             f"Wordle No. {puzzle_no}\nHere are yesterday's results:\n"
             "3/6: <@1>\n5/6: <@2>\nX/6: <@3>\n"
         ),
-        created_at=datetime(2026, 5, 20, 0, 5, tzinfo=timezone.utc),
+        # Use "now" so the submitters' last_played_at falls inside the
+        # leaderboard's ACTIVE_DAYS window no matter when the suite runs;
+        # a hardcoded past date silently empties the standings embed.
+        created_at=datetime.now(timezone.utc),
     )
 
 
