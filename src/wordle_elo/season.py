@@ -97,6 +97,20 @@ def first_puzzle_no(label: str, epoch: date | None = None) -> int:
     return (season_start_date(label) - (epoch or WORDLE_EPOCH)).days
 
 
+_QUARTER_MONTHS = {1: "Jan–Mar", 2: "Apr–Jun", 3: "Jul–Sep", 4: "Oct–Dec"}
+
+
+def season_period(label: str) -> str:
+    """Human month range for a season label, e.g. '2026-Q2' -> 'Apr–Jun'."""
+    _year, q = _parse_label(label)
+    return _QUARTER_MONTHS[q]
+
+
+def label_with_period(label: str) -> str:
+    """Season label annotated with its months, e.g. '2026-Q2 (Apr–Jun)'."""
+    return f"{label} ({season_period(label)})"
+
+
 def soft_reset(elo: int, carry: float | None = None, anchor: int | None = None) -> int:
     """Regress a rating toward the anchor for the next season.
 

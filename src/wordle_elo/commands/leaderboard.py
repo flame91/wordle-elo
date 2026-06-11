@@ -6,6 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from .. import season as season_module
 from ..leaderboard import format_season_finale_embed
 from ..nicknames import refresh_from_channel_history
 from ..seasons import (
@@ -40,7 +41,7 @@ class LeaderboardCog(commands.Cog):
         seasons = await list_archived_seasons(self.bot.sessionmaker)
         cur = current.strip().upper()
         return [
-            app_commands.Choice(name=s, value=s)
+            app_commands.Choice(name=season_module.label_with_period(s), value=s)
             for s in seasons
             if cur in s.upper()
         ][:25]

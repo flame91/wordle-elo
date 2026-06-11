@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 import discord
 from sqlalchemy import desc, func, select
 
+from . import season
 from .glicko2 import GlickoRating, apply_puzzle
 from .leaderboard import format_full_leaderboard
 from .models import Nickname, Player, Submission
@@ -40,7 +41,7 @@ def render_leaderboard_embed(
     title with the running season (e.g. '… · 2026-Q2')."""
     title, rating_label = _embed_meta(algo)
     if season_label:
-        title = f"{title} · {season_label}"
+        title = f"{title} · {season.label_with_period(season_label)}"
     embed = format_full_leaderboard(rows, title=title, rating_label=rating_label)
     footer = embed.footer.text if embed.footer is not None else ""
     embed.set_footer(text=f"{footer} · Active in last {ACTIVE_DAYS} days")

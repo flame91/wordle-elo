@@ -6,6 +6,7 @@ import unicodedata
 
 import discord
 
+from . import season
 from .tier import strip_provisional
 from .version import VersionEntry
 
@@ -120,9 +121,10 @@ def format_season_finale_embed(
     """Season wrap-up: crown the winner and list the final standings. `ranked`
     rows carry rank/user_id/final_elo/games_played/games_won/best_streak/
     avg_winning_guesses (see seasons.finalize_season)."""
+    title = f"\U0001f3c1 {season.label_with_period(season_label)} Season Final"
     if not ranked:
         return discord.Embed(
-            title=f"\U0001f3c1 {season_label} Season Final",
+            title=title,
             description="No games were played this season.",
             color=discord.Color.gold(),
         )
@@ -143,7 +145,7 @@ def format_season_finale_embed(
         )
 
     embed = discord.Embed(
-        title=f"\U0001f3c1 {season_label} Season Final",
+        title=title,
         description=(
             f"{CROWN} **Champion: {champ_name}** — `{champ['final_elo']}` ELO\n\n"
             + "\n".join(lines)
@@ -151,7 +153,7 @@ def format_season_finale_embed(
         color=discord.Color.gold(),
     )
     embed.set_footer(
-        text=f"{len(ranked)} players · ratings soft-reset for the next season"
+        text=f"{len(ranked)} players · ratings reset for the new season"
     )
     return embed
 
