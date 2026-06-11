@@ -31,7 +31,7 @@ class Config(BaseSettings):
     # acts on; earlier puzzles seed the first season without a reset. On each
     # quarter rollover ratings regress toward INITIAL by SEASON_CARRY.
     season_epoch: date = Field(default=date(2026, 1, 1), alias="SEASON_EPOCH")
-    season_carry: float = Field(default=0.5, alias="SEASON_CARRY")
+    season_carry: float = Field(default=0.0, alias="SEASON_CARRY")  # 0 = hard reset to INITIAL
 
     # Date-based puzzle-no fallback (Wordle Activity messages no longer embed the number)
     wordle_epoch_date: date = Field(default=date(2021, 6, 19), alias="WORDLE_EPOCH_DATE")

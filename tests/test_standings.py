@@ -6,7 +6,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from wordle_elo.models import Base, Nickname, Player, Submission
+from wordle_elo import season
+from wordle_elo.models import Base, Nickname, Player, SeasonState, Submission
 from wordle_elo.standings import (
     ACTIVE_DAYS,
     build_elo_rows,
@@ -77,6 +78,38 @@ async def test_elo_rows_avg_uses_only_winning_submissions(sessionmaker):
     assert by_uid[1]["avg_winning_guesses"] == pytest.approx(2.5)
     # User 3 wins: 5 (X/6 excluded) → avg 5.0
     assert by_uid[3]["avg_winning_guesses"] == pytest.approx(5.0)
+
+
+async def test_elo_rows_stats_scoped_to_current_season(sessionmaker):
+    """With a SeasonState set, the displayed games/wins/streak/avg cover only
+    the current season's puzzles — not the player's all-time totals."""
+    now = datetime.now(timezone.utc)
+    q2_lo = season.first_puzzle_no("2026-Q2")  # 1747
+    q1 = q2_lo - 5  # a Q1 puzzle (previous season)
+    async with sessionmaker() as session:
+        session.add(SeasonState(id=1, current_season="2026-Q2", updated_at=now))
+        # All-time Player counters are large, but only the in-season submissions
+        # should drive the row.
+        session.add(Player(user_id=1, elo=1200, games_played=99, games_won=99,
+                           best_streak=50, current_streak=50, first_seen_at=now,
+                           last_played_at=now))
+        session.add_all([
+            # Previous season — must be excluded
+            Submission(puzzle_no=q1, user_id=1, guesses=2, hard_mode=0, submitted_at=now),
+            # Current season — 2 wins (3,5) + 1 fail
+            Submission(puzzle_no=q2_lo, user_id=1, guesses=3, hard_mode=0, submitted_at=now),
+            Submission(puzzle_no=q2_lo + 1, user_id=1, guesses=5, hard_mode=0, submitted_at=now),
+            Submission(puzzle_no=q2_lo + 2, user_id=1, guesses=7, hard_mode=0, submitted_at=now),
+        ])
+        await session.commit()
+
+    rows = await build_elo_rows(sessionmaker)
+    row = rows[0]
+    assert row["games_played"] == 3      # not 99
+    assert row["games_won"] == 2
+    assert row["best_streak"] == 2       # 3,5 consecutive wins before the X
+    assert row["current_streak"] == 0    # last game was a fail
+    assert row["avg_winning_guesses"] == pytest.approx(4.0)  # (3+5)/2
 
 
 async def test_glicko2_rows_orders_by_computed_rating_not_stored_elo(sessionmaker):
