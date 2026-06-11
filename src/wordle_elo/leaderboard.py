@@ -111,6 +111,50 @@ def format_full_leaderboard(
     return embed
 
 
+MEDALS = ("\U0001f947", "\U0001f948", "\U0001f949")  # 🥇 🥈 🥉
+
+
+def format_season_finale_embed(
+    season_label: str, ranked: list[dict], names: dict[int, str], top: int = 10
+) -> discord.Embed:
+    """Season wrap-up: crown the winner and list the final standings. `ranked`
+    rows carry rank/user_id/final_elo/games_played/games_won/best_streak/
+    avg_winning_guesses (see seasons.finalize_season)."""
+    if not ranked:
+        return discord.Embed(
+            title=f"\U0001f3c1 {season_label} Season Final",
+            description="No games were played this season.",
+            color=discord.Color.gold(),
+        )
+
+    champ = ranked[0]
+    champ_name = names.get(champ["user_id"]) or f"<@{champ['user_id']}>"
+    lines = []
+    for p in ranked[:top]:
+        medal = MEDALS[p["rank"] - 1] if p["rank"] <= 3 else f"`#{p['rank']:>2}`"
+        name = names.get(p["user_id"])
+        name_str = f"**{name}**" if name else f"<@{p['user_id']}>"
+        win_pct = (p["games_won"] / p["games_played"] * 100) if p["games_played"] else 0
+        avg = _avg_str(p.get("avg_winning_guesses"))
+        lines.append(
+            f"{medal} {name_str}  `{p['final_elo']:>4}`  "
+            f"{p['games_won']}/{p['games_played']} ({win_pct:.0f}%)  "
+            f"\U0001f525{p['best_streak']}  ⌀{avg}"
+        )
+
+    embed = discord.Embed(
+        title=f"\U0001f3c1 {season_label} Season Final",
+        description=(
+            f"{CROWN} **Champion: {champ_name}** — `{champ['final_elo']}` ELO\n\n"
+            + "\n".join(lines)
+        ),
+        color=discord.Color.gold(),
+    )
+    embed.set_footer(
+        text=f"{len(ranked)} players · ratings soft-reset for the next season"
+    )
+    return embed
+
 
 def format_rank_embed(
     player,

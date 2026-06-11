@@ -27,6 +27,12 @@ class Config(BaseSettings):
     placement_games: int = Field(default=14, alias="PLACEMENT_GAMES")
     season_start_date: date = Field(default=date(2025, 10, 22), alias="SEASON_START_DATE")
 
+    # Quarterly seasons. SEASON_EPOCH is the first boundary the rollover job
+    # acts on; earlier puzzles seed the first season without a reset. On each
+    # quarter rollover ratings regress toward INITIAL by SEASON_CARRY.
+    season_epoch: date = Field(default=date(2026, 1, 1), alias="SEASON_EPOCH")
+    season_carry: float = Field(default=0.5, alias="SEASON_CARRY")
+
     # Date-based puzzle-no fallback (Wordle Activity messages no longer embed the number)
     wordle_epoch_date: date = Field(default=date(2021, 6, 19), alias="WORDLE_EPOCH_DATE")
 
@@ -41,7 +47,7 @@ def bootstrap() -> Config:
     user overrides. Call this in every entry point (bot + every script).
     """
     cfg = load_config()
-    from . import elo, parser
+    from . import elo, parser, season
 
     elo.configure(
         initial=cfg.initial_elo,
@@ -52,4 +58,10 @@ def bootstrap() -> Config:
         damping_anchor=cfg.damping_anchor,
     )
     parser.configure(epoch_date=cfg.wordle_epoch_date, tz_name=cfg.tz)
+    season.configure(
+        wordle_epoch=cfg.wordle_epoch_date,
+        season_epoch=cfg.season_epoch,
+        carry=cfg.season_carry,
+        anchor=cfg.initial_elo,
+    )
     return cfg

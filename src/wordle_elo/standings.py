@@ -30,15 +30,34 @@ def _embed_meta(algo: str) -> tuple[str, str]:
     return "Wordle ELO Leaderboard", "ELO"
 
 
-def render_leaderboard_embed(rows: list[dict], algo: str = "elo") -> discord.Embed:
+def render_leaderboard_embed(
+    rows: list[dict], algo: str = "elo", season_label: str | None = None
+) -> discord.Embed:
     """Build the final /leaderboard embed (title, rating label, active-days
     footer). Shared by the slash command and the daily auto-post so the two
-    views are byte-for-byte identical."""
+    views are byte-for-byte identical. `season_label`, when given, tags the
+    title with the running season (e.g. '… · 2026-Q2')."""
     title, rating_label = _embed_meta(algo)
+    if season_label:
+        title = f"{title} · {season_label}"
     embed = format_full_leaderboard(rows, title=title, rating_label=rating_label)
     footer = embed.footer.text if embed.footer is not None else ""
     embed.set_footer(text=f"{footer} · Active in last {ACTIVE_DAYS} days")
     return embed
+
+
+async def resolve_names(sessionmaker, user_ids: list[int]) -> dict[int, str]:
+    """user_id → stored display name (from the Nickname table) for the given
+    ids. Missing ids are simply absent so callers can fall back to a mention."""
+    if not user_ids:
+        return {}
+    async with sessionmaker() as session:
+        rows = (
+            await session.execute(
+                select(Nickname).where(Nickname.user_id.in_(user_ids))
+            )
+        ).scalars().all()
+    return {n.user_id: n.display_name for n in rows}
 
 
 async def _common_lookups(sessionmaker):

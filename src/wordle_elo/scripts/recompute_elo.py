@@ -2,6 +2,13 @@
 submissions in puzzle_no order. Use after changing K, scoring rules, or fixing
 the parser. Does NOT touch Discord.
 
+Season-aware: the replay runs the exact same `maybe_rollover` the live pipeline
+uses, so it also archives finished seasons (`season_results`), applies the
+between-season soft reset, and leaves `season_state` pointing at the current
+season. This doubles as the one-time migration that retroactively seasons an
+all-time DB. Announcements are suppressed (bot=None) so a rebuild never spams
+the channel.
+
 Run with:
     docker compose run --rm bot python -m wordle_elo.scripts.recompute_elo
 """
@@ -19,7 +26,8 @@ from ..config import bootstrap
 from ..db import init_db, make_engine, make_sessionmaker
 from ..elo import INITIAL as ELO_INITIAL
 from ..elo import compute_daily
-from ..models import EloHistory, Player, Submission
+from ..models import EloHistory, Player, SeasonResult, SeasonState, Submission
+from ..seasons import maybe_rollover
 
 log = logging.getLogger(__name__)
 ELO_FLOOR = 100
@@ -32,6 +40,8 @@ async def recompute(cfg) -> None:
 
     async with sm() as session:
         await session.execute(delete(EloHistory))
+        await session.execute(delete(SeasonResult))
+        await session.execute(delete(SeasonState))
         for p in (await session.execute(select(Player))).scalars():
             p.elo = ELO_INITIAL
             p.games_played = 0
@@ -59,6 +69,13 @@ async def recompute(cfg) -> None:
             ).scalars().all()
             if not subs:
                 continue
+
+            # Same season-boundary logic the live pipeline runs: archive +
+            # soft-reset before scoring the first puzzle of a new quarter.
+            when = subs[0].submitted_at or now
+            finalized = await maybe_rollover(session, None, puzzle_no, when=when, post=False)
+            if finalized:
+                print(f"# Season {finalized} finalised at puzzle {puzzle_no}")
 
             submitter_ids = [s.user_id for s in subs]
             players = {

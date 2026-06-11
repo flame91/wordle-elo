@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Quarterly seasons.** Play is now divided into calendar quarters
+  (Q1 Jan–Mar, Q2 Apr–Jun, Q3 Jul–Sep, Q4 Oct–Dec). At each boundary the
+  finished season's final standings are archived (`season_results`) and a
+  champion is announced to the channel, then every rating is **soft-reset** —
+  `new = INITIAL + (elo - INITIAL) * SEASON_CARRY` (default 0.5) — so the next
+  season starts competitive while preserving skill order. Boundary detection is
+  keyed off the puzzle number, so catch-up backfill across a boundary resets at
+  the right puzzle. New knobs: `SEASON_EPOCH` (first tracked boundary, default
+  2026-01-01) and `SEASON_CARRY`. `/leaderboard` now tags the current season and
+  accepts `season:<label>` (e.g. `2026-Q1`) to view an archived season.
+- `recompute_elo` is season-aware: replaying the history also rebuilds the
+  season archive and applies the soft resets, doubling as the one-time
+  migration that seasons an existing all-time DB.
+
 ### Changed
 - ELO scoring switched to a **day-relative** speed bonus. Instead of a fixed
   4-guess baseline, `speed_bonus = SPEED_SLOPE * (day_baseline - guesses)`
