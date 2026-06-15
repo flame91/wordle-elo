@@ -20,7 +20,8 @@ import discord
 from ..config import bootstrap
 from ..dryrun import simulate
 from ..leaderboard import format_leaderboard_console
-from ..parser import parse_message
+from ..parser import ParsedMessage, parse_message
+from ..resolve import resolve_message
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class DryRunClient(discord.Client):
     def __init__(self, cfg, channel_id: int, since_puzzle: int | None, limit: int | None):
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.members = True  # preload guild members for plain-text name resolution
         super().__init__(intents=intents)
         self.cfg = cfg
         self.channel_id = channel_id
@@ -40,9 +42,13 @@ class DryRunClient(discord.Client):
             channel = self.get_channel(self.channel_id) or await self.fetch_channel(self.channel_id)
             print(f"# DRY-RUN from #{channel.name} — DB and channel untouched\n", flush=True)
 
+            guild = self.get_guild(self.cfg.discord_guild_id)
+
             parsed_msgs = []
             user_ids: set[int] = set()
             scan_failures = 0
+            resolved_names = 0
+            skipped_names = 0
             scanned = 0
 
             async for msg in channel.history(limit=self.limit, oldest_first=True):
@@ -55,6 +61,17 @@ class DryRunClient(discord.Client):
                     continue
                 if self.since_puzzle is not None and parsed.puzzle_no < self.since_puzzle:
                     continue
+                # Fold plain-text @names in (guild-only; DB is untouched in dry-run).
+                submissions, skipped = await resolve_message(parsed, guild, None)
+                resolved_names += len(submissions) - len(parsed.submissions)
+                for outcome in skipped:
+                    skipped_names += 1
+                    print(
+                        f"  ! puzzle {parsed.puzzle_no}: unresolved @{outcome.name} "
+                        f"({outcome.source}, candidates={outcome.candidates})",
+                        flush=True,
+                    )
+                parsed = ParsedMessage(parsed.puzzle_no, tuple(submissions))
                 parsed_msgs.append(parsed)
                 for s in parsed.submissions:
                     user_ids.add(s.user_id)
@@ -64,8 +81,11 @@ class DryRunClient(discord.Client):
                 f"{len(parsed_msgs)} Wordle results, {scan_failures} parse failures",
                 flush=True,
             )
-
-            guild = self.get_guild(self.cfg.discord_guild_id)
+            print(
+                f"# Plain-text names: {resolved_names} resolved, "
+                f"{skipped_names} skipped",
+                flush=True,
+            )
             display_names: dict[int, str] = {}
             for uid in user_ids:
                 # Prefer Member (server-visible name); fall back to global User.

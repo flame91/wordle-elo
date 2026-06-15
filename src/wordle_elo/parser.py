@@ -22,11 +22,17 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+# Capture everything after the colon to end of line, then pull out both real
+# mentions (<@id>) and plain-text @names. Wordle Activity renders some users as
+# plain text instead of a mention, and mixed lines like "JohnDoe <@333>" used to
+# fail to match at all under the old mentions-only pattern.
 LINE_RE = re.compile(
-    r"(?P<guesses>[1-6X])/6(?P<hard>\*?)\s*:\s*"
-    r"(?P<users>(?:<@!?\d+>\s*)+)"
+    r"(?P<guesses>[1-6X])/6(?P<hard>\*?)\s*:\s*(?P<users>.+)",
+    re.MULTILINE,
 )
 USER_RE = re.compile(r"<@!?(\d+)>")
+# A plain-text @name is what's left once the <@id> mentions are stripped out.
+PLAIN_NAME_RE = re.compile(r"@([^\s<@>]+)")
 PUZZLE_RE = re.compile(r"Wordle\s*(?:No\.?|#)\s*([\d,]+)", re.IGNORECASE)
 
 X_FAIL_GUESSES = 7  # internal representation for X/6 (failed)
@@ -66,9 +72,20 @@ class ParsedSubmission:
 
 
 @dataclass(frozen=True)
+class UnresolvedSubmission:
+    """A result-line entry that gave us a plain-text @name but no snowflake.
+    The name still needs to be resolved to a user_id (see `resolve.py`)."""
+
+    name: str
+    guesses: int  # 1..6 = solved in N, 7 = failed (X/6)
+    hard_mode: bool
+
+
+@dataclass(frozen=True)
 class ParsedMessage:
     puzzle_no: int
     submissions: tuple[ParsedSubmission, ...]
+    unresolved: tuple[UnresolvedSubmission, ...] = ()
 
 
 def _extract_puzzle_no(*texts: str) -> int | None:
@@ -81,20 +98,33 @@ def _extract_puzzle_no(*texts: str) -> int | None:
     return None
 
 
-def _parse_lines(content: str) -> list[ParsedSubmission]:
+def _parse_lines(
+    content: str,
+) -> tuple[list[ParsedSubmission], list[UnresolvedSubmission]]:
     subs: list[ParsedSubmission] = []
+    unresolved: list[UnresolvedSubmission] = []
     seen: set[int] = set()
+    seen_names: set[str] = set()
     for m in LINE_RE.finditer(content):
         token = m.group("guesses")
         guesses = X_FAIL_GUESSES if token == "X" else int(token)
         hard = bool(m.group("hard"))
-        for uid_str in USER_RE.findall(m.group("users")):
+        users = m.group("users")
+        for uid_str in USER_RE.findall(users):
             uid = int(uid_str)
             if uid in seen:
                 continue
             seen.add(uid)
             subs.append(ParsedSubmission(uid, guesses, hard))
-    return subs
+        # Whatever isn't a real mention may still be a plain-text @name.
+        residual = USER_RE.sub(" ", users)
+        for name in PLAIN_NAME_RE.findall(residual):
+            key = name.casefold()
+            if key in seen_names:
+                continue
+            seen_names.add(key)
+            unresolved.append(UnresolvedSubmission(name, guesses, hard))
+    return subs, unresolved
 
 
 def parse_text(
@@ -103,15 +133,15 @@ def parse_text(
     fallback_puzzle_no: int | None = None,
 ) -> ParsedMessage | None:
     """Pure parsing entrypoint — kept free of discord.py dependencies for unit tests."""
-    subs = _parse_lines(content or "")
-    if not subs:
+    subs, unresolved = _parse_lines(content or "")
+    if not subs and not unresolved:
         return None
     puzzle_no = _extract_puzzle_no(content or "", *(embed_texts or []))
     if puzzle_no is None:
         puzzle_no = fallback_puzzle_no
     if puzzle_no is None:
         return None
-    return ParsedMessage(puzzle_no, tuple(subs))
+    return ParsedMessage(puzzle_no, tuple(subs), tuple(unresolved))
 
 
 def collect_embed_texts(message) -> list[str]:
