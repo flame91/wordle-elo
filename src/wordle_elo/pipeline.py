@@ -17,6 +17,7 @@ from .elo import compute_daily
 from .leaderboard import format_daily_embed
 from .models import EloHistory, Nickname, Player, ProcessedPuzzle, Submission
 from .parser import parse_message
+from .resolve import resolve_message
 from .seasons import current_season_label, maybe_rollover
 from .standings import build_elo_rows, render_leaderboard_embed
 from .tier import assign_tier
@@ -74,10 +75,22 @@ async def _apply(session, bot, parsed, source_msg):
     # are reset — this puzzle's newcomers start fresh below).
     await maybe_rollover(session, bot, parsed.puzzle_no, when=when)
 
-    submitter_ids = [s.user_id for s in parsed.submissions]
+    # Wordle Activity sometimes renders a user as plain text (@name) instead of a
+    # real mention (<@id>); fold those back in by resolving names against the
+    # guild member cache / nickname history. Names we can't resolve uniquely are
+    # skipped (never guessed) and logged.
+    guild = _guild_from_bot(bot)
+    submissions, skipped = await resolve_message(parsed, guild, session)
+    for outcome in skipped:
+        log.warning(
+            "Puzzle %s: unresolved plain-text name @%s (%s, candidates=%s) — skipped",
+            parsed.puzzle_no, outcome.name, outcome.source, outcome.candidates,
+        )
+
+    submitter_ids = [s.user_id for s in submissions]
 
     # Ensure player rows exist + refresh nicknames from the live cache
-    for s in parsed.submissions:
+    for s in submissions:
         existing = await session.get(Player, s.user_id)
         if existing is None:
             session.add(Player(user_id=s.user_id, elo=ELO_INITIAL, first_seen_at=when))
@@ -92,18 +105,18 @@ async def _apply(session, bot, parsed, source_msg):
     ratings_before = {uid: players[uid].elo for uid in submitter_ids}
     games_played_before = {uid: players[uid].games_played for uid in submitter_ids}
     streaks_after: dict[int, int] = {}
-    for s in parsed.submissions:
+    for s in submissions:
         prev = players[s.user_id].current_streak
         streaks_after[s.user_id] = (prev + 1) if s.won else 0
 
-    subs_tuple = [(s.user_id, s.guesses, s.hard_mode) for s in parsed.submissions]
+    subs_tuple = [(s.user_id, s.guesses, s.hard_mode) for s in submissions]
     deltas = compute_daily(
         subs_tuple, ratings_before, streaks_after,
         games_played_before=games_played_before,
     )
 
     entries = []
-    for s in parsed.submissions:
+    for s in submissions:
         p = players[s.user_id]
         elo_before = p.elo
         d = deltas.get(s.user_id)
@@ -174,6 +187,16 @@ async def _apply(session, bot, parsed, source_msg):
         entry["tier"] = assign_tier(entry["elo_after"], all_ratings, p.games_played)
 
     return {"puzzle_no": parsed.puzzle_no, "entries": entries}
+
+
+def _guild_from_bot(bot):
+    """The configured guild from the live cache, or None if unavailable."""
+    if bot is None:
+        return None
+    guild_id = getattr(getattr(bot, "cfg", None), "discord_guild_id", None)
+    if guild_id is None:
+        return None
+    return bot.get_guild(guild_id)
 
 
 async def _resolve_display_name(bot, user_id: int) -> tuple[str | None, str]:

@@ -5,6 +5,7 @@ from wordle_elo.parser import (
     USER_RE,
     X_FAIL_GUESSES,
     ParsedSubmission,
+    UnresolvedSubmission,
     _puzzle_no_from_created_at,
     configure,
     parse_text,
@@ -122,6 +123,77 @@ def test_no_submissions_returns_none_even_with_fallback():
     content = "Foo was playing"
     parsed = parse_text(content, [], fallback_puzzle_no=1787)
     assert parsed is None
+
+
+def test_plain_text_name_becomes_unresolved():
+    # Wordle Activity sometimes renders a user as plain text instead of <@id>.
+    content = "5/6: @flame91"
+    parsed = parse_text(content, ["Wordle No. 1818"])
+    assert parsed is not None
+    assert parsed.submissions == ()
+    assert parsed.unresolved == (UnresolvedSubmission("flame91", 5, False),)
+
+
+def test_mixed_mention_and_plain_name_same_line():
+    # The <@id> after plain text used to make the whole line fail to match.
+    content = "4/6: JohnDoe <@444>"
+    parsed = parse_text(content, ["Wordle No. 1"])
+    assert parsed is not None
+    assert parsed.submissions == (ParsedSubmission(444, 4, False),)
+    # "JohnDoe" has no leading @, so it isn't captured as a plain-text name.
+    assert parsed.unresolved == ()
+
+
+def test_mention_then_plain_name_both_captured():
+    content = "4/6: <@111> @racingandy"
+    parsed = parse_text(content, ["Wordle No. 1"])
+    assert parsed is not None
+    assert parsed.submissions == (ParsedSubmission(111, 4, False),)
+    assert parsed.unresolved == (UnresolvedSubmission("racingandy", 4, False),)
+
+
+def test_plain_names_carry_guesses_and_fail():
+    content = "X/6: @racingandy @leoli"
+    parsed = parse_text(content, ["Wordle No. 1"])
+    assert parsed is not None
+    assert parsed.unresolved == (
+        UnresolvedSubmission("racingandy", X_FAIL_GUESSES, False),
+        UnresolvedSubmission("leoli", X_FAIL_GUESSES, False),
+    )
+
+
+def test_plain_name_deduped_case_insensitively():
+    content = "3/6: @Flame91\n4/6: @flame91"
+    parsed = parse_text(content, ["Wordle No. 1"])
+    assert parsed is not None
+    assert parsed.unresolved == (UnresolvedSubmission("Flame91", 3, False),)
+
+
+def test_real_broken_day_message():
+    # Regression: the exact content of the 2026-06-11 message where flame91,
+    # Frankschifflotte, racingandy and leoli came through as plain text.
+    content = (
+        "**Your group is on a 186 day streak!** \U0001f525\U0001f525\U0001f525 "
+        "Here are yesterday's results:\n"
+        "\U0001f451 2/6: @Frankschifflotte\n"
+        "3/6: <@471445975790256140>\n"
+        "4/6: <@1418486736501342288> <@443064200642822144>\n"
+        "5/6: @flame91\n"
+        "X/6: @racingandy @leoli"
+    )
+    parsed = parse_text(content, [], fallback_puzzle_no=1818)
+    assert parsed is not None
+    assert {s.user_id for s in parsed.submissions} == {
+        471445975790256140,
+        1418486736501342288,
+        443064200642822144,
+    }
+    assert [u.name for u in parsed.unresolved] == [
+        "Frankschifflotte",
+        "flame91",
+        "racingandy",
+        "leoli",
+    ]
 
 
 def test_puzzle_no_from_created_at_kst_midnight():
