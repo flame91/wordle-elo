@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migration that seasons an existing all-time DB.
 
 ### Changed
+- **Leaderboard activity cut-off removed.** `/leaderboard` (and the daily
+  auto-post) previously hid anyone who hadn't played in the last 7 days and
+  footed the embed with "Active in last 7 days". Every player who has ever
+  played is now shown, ordered by ELO, regardless of how long they've been
+  away — taking a break no longer drops you off the board.
 - ELO scoring switched to a **day-relative** speed bonus. Instead of a fixed
   4-guess baseline, `speed_bonus = SPEED_SLOPE * (day_baseline - guesses)`
   where `day_baseline` is the mean guesses of today's solvers. On an easy day

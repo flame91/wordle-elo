@@ -11,8 +11,6 @@ module hides the data wiring so the cog stays focused on Discord glue.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
 import discord
 from sqlalchemy import desc, func, select
 
@@ -22,8 +20,6 @@ from .leaderboard import format_full_leaderboard
 from .models import Nickname, Player, Submission
 from .seasons import current_season_label, season_player_stats
 from .tier import assign_tier
-
-ACTIVE_DAYS = 7
 
 
 def _embed_meta(algo: str) -> tuple[str, str]:
@@ -35,17 +31,14 @@ def _embed_meta(algo: str) -> tuple[str, str]:
 def render_leaderboard_embed(
     rows: list[dict], algo: str = "elo", season_label: str | None = None
 ) -> discord.Embed:
-    """Build the final /leaderboard embed (title, rating label, active-days
-    footer). Shared by the slash command and the daily auto-post so the two
-    views are byte-for-byte identical. `season_label`, when given, tags the
-    title with the running season (e.g. '… · 2026-Q2')."""
+    """Build the final /leaderboard embed (title, rating label). Shared by the
+    slash command and the daily auto-post so the two views are byte-for-byte
+    identical. `season_label`, when given, tags the title with the running
+    season (e.g. '… · 2026-Q2')."""
     title, rating_label = _embed_meta(algo)
     if season_label:
         title = f"{title} · {season.label_with_period(season_label)}"
-    embed = format_full_leaderboard(rows, title=title, rating_label=rating_label)
-    footer = embed.footer.text if embed.footer is not None else ""
-    embed.set_footer(text=f"{footer} · Active in last {ACTIVE_DAYS} days")
-    return embed
+    return format_full_leaderboard(rows, title=title, rating_label=rating_label)
 
 
 async def resolve_names(sessionmaker, user_ids: list[int]) -> dict[int, str]:
@@ -63,7 +56,10 @@ async def resolve_names(sessionmaker, user_ids: list[int]) -> dict[int, str]:
 
 
 async def _common_lookups(sessionmaker):
-    """Filtered player rows + nickname map + per-user stats.
+    """Player rows + nickname map + per-user stats.
+
+    Every player who has ever played is included, ordered by ELO — there is no
+    activity cut-off, so someone who took a break still shows on the board.
 
     Stats (games / wins / best & current streak / avg winning guesses) are
     scoped to the *current season* once seasons are initialised, so the board
@@ -71,14 +67,12 @@ async def _common_lookups(sessionmaker):
     state exists (fresh DB / tests) it falls back to all-time figures taken
     from the Player counters + the full Submission log.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=ACTIVE_DAYS)
     label = await current_season_label(sessionmaker)
     async with sessionmaker() as session:
         players = (
             await session.execute(
                 select(Player)
                 .where(Player.last_played_at.is_not(None))
-                .where(Player.last_played_at >= cutoff)
                 .order_by(desc(Player.elo))
             )
         ).scalars().all()
@@ -139,8 +133,8 @@ async def build_elo_rows(sessionmaker) -> list[dict]:
 
 
 async def build_glicko2_rows(sessionmaker) -> list[dict]:
-    """Replay all puzzles to compute current Glicko-2 ratings, then filter
-    to recently-active players (matches /leaderboard's ACTIVE_DAYS scope)."""
+    """Replay all puzzles to compute current Glicko-2 ratings for every player
+    who has played (matches /leaderboard's scope — no activity cut-off)."""
     ratings: dict[int, GlickoRating] = {}
 
     async with sessionmaker() as session:
