@@ -16,7 +16,6 @@ from ..seasons import (
     normalize_season_label,
 )
 from ..standings import (
-    ACTIVE_DAYS,
     build_elo_rows,
     build_glicko2_rows,
     render_leaderboard_embed,
@@ -76,9 +75,7 @@ class LeaderboardCog(commands.Cog):
             # Trigger a nickname refresh in case the empty result is masking
             # un-resolved Player rows (rare — but parity with the original path).
             await self._maybe_refresh_nicknames(rows)
-            await interaction.followup.send(
-                f"No players active in the last {ACTIVE_DAYS} days."
-            )
+            await interaction.followup.send("No players have played yet.")
             return
 
         await self._maybe_refresh_nicknames(rows)

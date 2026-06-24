@@ -1,5 +1,5 @@
-"""Standings loader tests — ELO and Glicko-2 row builders share the active
-filter, nickname join, and avg-winning-guesses GROUP BY query."""
+"""Standings loader tests — ELO and Glicko-2 row builders share the player
+query (no activity cut-off), nickname join, and avg-winning-guesses GROUP BY."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from wordle_elo import season
 from wordle_elo.models import Base, Nickname, Player, SeasonState, Submission
 from wordle_elo.standings import (
-    ACTIVE_DAYS,
     build_elo_rows,
     build_glicko2_rows,
 )
@@ -24,10 +23,10 @@ async def sessionmaker():
     await engine.dispose()
 
 
-async def _seed_three_active_one_stale(sessionmaker):
+async def _seed_four_players_one_idle(sessionmaker):
     now = datetime.now(timezone.utc)
     fresh = now - timedelta(hours=1)
-    stale = now - timedelta(days=ACTIVE_DAYS + 1)
+    idle = now - timedelta(days=30)  # long break — no longer filtered out
     async with sessionmaker() as session:
         session.add_all([
             Player(user_id=1, elo=1200, games_played=10, games_won=8,
@@ -41,7 +40,7 @@ async def _seed_three_active_one_stale(sessionmaker):
                    last_played_at=fresh),
             Player(user_id=4, elo=1700, games_played=20, games_won=18,
                    best_streak=10, current_streak=0, first_seen_at=now,
-                   last_played_at=stale),  # excluded by active filter
+                   last_played_at=idle),  # idle but still shown
         ])
         session.add_all([
             Nickname(user_id=1, display_name="alice", source="member", updated_at=now),
@@ -55,23 +54,24 @@ async def _seed_three_active_one_stale(sessionmaker):
             Submission(puzzle_no=2, user_id=1, guesses=2, hard_mode=0, submitted_at=fresh),
             Submission(puzzle_no=2, user_id=2, guesses=4, hard_mode=0, submitted_at=fresh),
             Submission(puzzle_no=2, user_id=3, guesses=7, hard_mode=0, submitted_at=fresh),  # X/6 → not in avg
-            Submission(puzzle_no=3, user_id=4, guesses=3, hard_mode=0, submitted_at=stale),  # stale player
+            Submission(puzzle_no=3, user_id=4, guesses=3, hard_mode=0, submitted_at=idle),  # idle player
         ])
         await session.commit()
 
 
-async def test_elo_rows_orders_by_stored_elo_and_drops_stale(sessionmaker):
-    await _seed_three_active_one_stale(sessionmaker)
+async def test_elo_rows_orders_by_stored_elo_and_includes_idle(sessionmaker):
+    await _seed_four_players_one_idle(sessionmaker)
     rows = await build_elo_rows(sessionmaker)
-    assert [r["user_id"] for r in rows] == [2, 1, 3]
-    assert 4 not in [r["user_id"] for r in rows]
+    # Idle player 4 (highest ELO) is still on the board, ordered by ELO desc.
+    assert [r["user_id"] for r in rows] == [4, 2, 1, 3]
     # Display name passthrough
-    assert rows[0]["display_name"] == "bob"
-    assert rows[2]["display_name"] is None
+    by_uid = {r["user_id"]: r for r in rows}
+    assert by_uid[2]["display_name"] == "bob"
+    assert by_uid[3]["display_name"] is None
 
 
 async def test_elo_rows_avg_uses_only_winning_submissions(sessionmaker):
-    await _seed_three_active_one_stale(sessionmaker)
+    await _seed_four_players_one_idle(sessionmaker)
     rows = await build_elo_rows(sessionmaker)
     by_uid = {r["user_id"]: r for r in rows}
     # User 1 wins: 3 and 2 → avg 2.5
@@ -141,7 +141,7 @@ async def test_glicko2_rows_orders_by_computed_rating_not_stored_elo(sessionmake
 
 
 async def test_glicko2_rows_include_rd(sessionmaker):
-    await _seed_three_active_one_stale(sessionmaker)
+    await _seed_four_players_one_idle(sessionmaker)
     rows = await build_glicko2_rows(sessionmaker)
     assert rows  # not empty
     for r in rows:
@@ -149,20 +149,20 @@ async def test_glicko2_rows_include_rd(sessionmaker):
         assert r["rating_rd"] > 0
 
 
-async def test_glicko2_rows_skip_stale_players_even_if_they_have_submissions(sessionmaker):
-    await _seed_three_active_one_stale(sessionmaker)
+async def test_glicko2_rows_include_idle_players_with_submissions(sessionmaker):
+    await _seed_four_players_one_idle(sessionmaker)
     rows = await build_glicko2_rows(sessionmaker)
-    assert 4 not in [r["user_id"] for r in rows]
+    assert 4 in [r["user_id"] for r in rows]
 
 
-async def test_both_loaders_empty_when_no_active_players(sessionmaker):
+async def test_both_loaders_empty_when_no_one_has_played(sessionmaker):
     now = datetime.now(timezone.utc)
-    stale = now - timedelta(days=ACTIVE_DAYS + 1)
     async with sessionmaker() as session:
+        # Registered but never played (last_played_at is NULL, no submissions).
         session.add(
-            Player(user_id=1, elo=1500, games_played=10, games_won=8,
-                   best_streak=3, current_streak=0, first_seen_at=now,
-                   last_played_at=stale)
+            Player(user_id=1, elo=1500, games_played=0, games_won=0,
+                   best_streak=0, current_streak=0, first_seen_at=now,
+                   last_played_at=None)
         )
         await session.commit()
 
