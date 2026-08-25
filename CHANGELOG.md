@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Seasons switch from quarterly to monthly on 2026-09-01.** Seasons stay
+  calendar quarters up to the new `SEASON_MONTHLY_START` anchor and become one
+  calendar month from it on, labelled `YYYY-MM`. The quarter the anchor lands
+  inside is cut short, so **`2026-Q3` runs Jul 1 – Aug 31** (two months, and
+  the archive/reset it triggers covers exactly that window) and `2026-09` is the
+  first monthly season. Everything else about a rollover is unchanged: archive,
+  champion announcement, then the `SEASON_CARRY` reset.
+  - Boundary detection still keys off the *puzzle* date, so the message that
+    lands on Sep 1 carries the Aug 31 puzzle and still scores in `2026-Q3`; the
+    rollover fires on the Sep 1 puzzle, seen on Sep 2.
+  - `season_period` now reads a season's real start and end instead of a
+    per-quarter table, so labels describe themselves honestly:
+    `2026-Q3 (Jul–Aug)`, `2026-09 (Sep)`.
+  - `/leaderboard season:` accepts monthly input (`2026-09`, `202609`, `09`,
+    `10`) alongside the quarterly forms. A bare `1`–`4` still means a quarter,
+    since those were the only seasons that ever used those digits; write `01`
+    for January.
+  - Archived quarterly seasons (`2026-Q1`, `2026-Q2`) keep their labels and stay
+    viewable — the change needs no migration.
+
+### Fixed
+- `/leaderboard season:<label>` read the default year by splitting the current
+  season label on `-Q`, which raises once that label is monthly (`2026-09`).
+
 ### Added
 - **Quarterly seasons.** Play is now divided into calendar quarters
   (Q1 Jan–Mar, Q2 Apr–Jun, Q3 Jul–Sep, Q4 Oct–Dec). At each boundary the

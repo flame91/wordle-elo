@@ -1,6 +1,6 @@
 """Season rollover service (DB + Discord side of `season.py`).
 
-A quarterly boundary is detected from the *puzzle being processed*, not the wall
+A season boundary is detected from the *puzzle being processed*, not the wall
 clock: the puzzle posted at 00:00 KST is the previous day's Wordle, and catch-up
 may backfill puzzles from across a boundary. Keying off `puzzle_no` makes the
 reset land on the exact puzzle that opens a new season, however late it's seen.
@@ -190,16 +190,26 @@ async def list_archived_seasons(sessionmaker) -> list[str]:
 
 
 def normalize_season_label(raw: str, default_year: int) -> str | None:
-    """Accept loose user input for a season and return a canonical `YYYY-Qn`,
-    or None if it can't be parsed. Handles `2026-Q1`, `2026q1`, `2026 1`,
-    `Q1`, and bare `1` (which assumes `default_year`)."""
+    """Accept loose user input for a season and return a canonical label
+    (`YYYY-Qn` or `YYYY-MM`), or None if it can't be parsed.
+
+    Quarterly: `2026-Q1`, `2026q1`, `2026 1`, `Q1`, bare `1`.
+    Monthly:   `2026-09`, `202609`, `2026-10`, bare `09`, bare `10`.
+
+    A bare 1–4 stays a *quarter* (the only seasons that ever used those digits
+    were quarterly), so `1` still means Q1. Write the month zero-padded — `01`
+    — to ask for January instead; 5–12 are unambiguous either way since no
+    quarter goes that high.
+    """
     s = raw.strip().upper().replace(" ", "").replace("-", "")
-    m = re.fullmatch(r"(\d{4})Q?([1-4])", s)
+    # Explicit Q, or an unpadded 1–4: a quarter.
+    m = re.fullmatch(r"(\d{4})?Q([1-9]|1[0-2])", s) or re.fullmatch(r"(\d{4})?([1-4])", s)
+    if m and 1 <= int(m.group(2)) <= 4:
+        return f"{m.group(1) or default_year}-Q{m.group(2)}"
+    # Zero-padded month, or an unpadded 5–12: a month.
+    m = re.fullmatch(r"(\d{4})?(0[1-9]|1[0-2])", s) or re.fullmatch(r"(\d{4})?([5-9])", s)
     if m:
-        return f"{m.group(1)}-Q{m.group(2)}"
-    m = re.fullmatch(r"Q?([1-4])", s)
-    if m:
-        return f"{default_year}-Q{m.group(1)}"
+        return f"{m.group(1) or default_year}-{int(m.group(2)):02d}"
     return None
 
 
