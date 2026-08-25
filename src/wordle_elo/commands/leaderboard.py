@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 
 import discord
 from discord import app_commands
@@ -48,7 +49,7 @@ class LeaderboardCog(commands.Cog):
     @app_commands.command(name="leaderboard", description="Show the full ranking leaderboard")
     @app_commands.describe(
         algorithm="Which rating algorithm to display (default: ELO)",
-        season="Past season to view (e.g. 2026-Q1); omit for the current season",
+        season="Past season to view (e.g. 2026-09 or 2026-Q2); omit for the current season",
     )
     @app_commands.choices(
         algorithm=[
@@ -91,7 +92,11 @@ class LeaderboardCog(commands.Cog):
 
     async def _send_season_archive(self, interaction: discord.Interaction, raw: str) -> None:
         current = await current_season_label(self.bot.sessionmaker)
-        default_year = int(current.split("-Q")[0]) if current else 2026
+        # Read the year off the label properly: it is 'YYYY-MM' from the monthly
+        # switch on, so splitting on '-Q' no longer finds one.
+        default_year = (
+            season_module.season_start_date(current).year if current else date.today().year
+        )
         label = normalize_season_label(raw, default_year) or raw.strip().upper()
         ranked = await load_season_archive(self.bot.sessionmaker, label)
         if not ranked:
